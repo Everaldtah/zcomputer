@@ -2,11 +2,11 @@ import Foundation
 
 /// Provider-native tools that are declared differently from a plain JSON-schema function.
 public enum NativeToolKind: String, Codable, Sendable, Hashable {
-    case anthropicComputer      // Anthropic computer-use tool (computer_YYYYMMDD)
+    case anthropicComputer      // Anthropic computer toolset (computer_toolset_20260801; older models computer_20251124/20250124)
     case anthropicBash
     case anthropicTextEditor
-    case openAIComputer         // OpenAI Responses API computer_use_preview
-    case geminiComputer         // Gemini computer_use tool
+    case openAIComputer         // OpenAI Responses API tool type "computer" (computer_use_preview retired 2026-07-23)
+    case geminiComputer         // Gemini computerUse tool (generateContent) / computer_use (Interactions API)
 }
 
 /// A tool as advertised to the model.
