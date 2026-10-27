@@ -7,8 +7,8 @@ import ZCore
 @MainActor
 final class MachineScreenController {
     let input = MachineInput()
-    @ObservationIgnored let catcher = KeyboardCatcher()
-    @ObservationIgnored let demoFeed = DemoScreenFeed()
+    let catcher = KeyboardCatcher()
+    let demoFeed = DemoScreenFeed()
     private(set) var keyboardShown = false
 
     init() {
