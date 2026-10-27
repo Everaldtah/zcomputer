@@ -333,7 +333,7 @@ final class TeamRunnerTests: XCTestCase {
         ])
         let listTeam = TeamRunner(spec: TeamSpec(members: [teamMember("lead", .lead), teamMember("worker", .worker)],
                                                  goal: "Run a server", defaultPolicy: quietPolicy()),
-                                  clientFactory: factory(["lead": listLead, "worker": shellWorker("worker")]))
+                                  surface: MockSurface(), clientFactory: factory(["lead": listLead, "worker": shellWorker("worker")]))
         let listOutcome = await runTeam(listTeam)
         XCTAssertTrue(listOutcome.success, listOutcome.report)
         XCTAssertEqual(listOutcome.tasks.map(\.title), ["Install the server", "Start the server"])
@@ -345,7 +345,7 @@ final class TeamRunnerTests: XCTestCase {
         ])
         let lazyTeam = TeamRunner(spec: TeamSpec(members: [teamMember("lead", .lead), teamMember("worker", .worker)],
                                                  goal: "Tidy the desktop\nand empty the trash", defaultPolicy: quietPolicy()),
-                                  clientFactory: factory(["lead": lazyLead, "worker": shellWorker("worker")]))
+                                  surface: MockSurface(), clientFactory: factory(["lead": lazyLead, "worker": shellWorker("worker")]))
         let lazyOutcome = await runTeam(lazyTeam)
         XCTAssertTrue(lazyOutcome.success, lazyOutcome.report)
         XCTAssertEqual(lazyOutcome.tasks.map(\.title), ["Tidy the desktop"])
@@ -395,6 +395,76 @@ final class TeamRunnerTests: XCTestCase {
         XCTAssertEqual(log.first?.from, TeamRoster.userID)
         let inbox = await team.messages.inbox(for: "worker")
         XCTAssertEqual(inbox, [], "user messages go straight to the agent, not to its inbox")
+    }
+}
+
+extension TeamRunnerTests {
+    func testPauseHoldsTheTeamUntilResume() async throws {
+        let gate = Gate()
+        let lead = ScriptedClient.script([
+            toolTurn("p1", "board_plan", ["tasks": .array([["title": "Look at the board"]])]),
+            completeTurn("p2", "Planned"),
+            completeTurn("r1", "Done"),
+        ])
+        let worker = ScriptedClient(name: "worker") { req in
+            if req.index == 0 {
+                await gate.wait()
+                return toolTurn("w0", "board_list")
+            }
+            return completeTurn("w\(req.index)", "Looked")
+        }
+        let spec = TeamSpec(members: [teamMember("lead", .lead), teamMember("worker", .worker)], goal: "Look",
+                            defaultPolicy: quietPolicy())
+        let team = TeamRunner(spec: spec, clientFactory: factory(["lead": lead, "worker": worker]))
+        try await team.start()
+        await waitUntil { await team.status(of: "worker") == .thinking }
+
+        await team.pause()
+        let paused = await team.isPaused
+        XCTAssertTrue(paused)
+        let status = await team.status(of: "worker")
+        XCTAssertEqual(status, .paused)
+        await gate.open()
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(worker.requests.count, 1, "no new model call while paused")
+        let phase = await team.phase
+        XCTAssertEqual(phase, .working)
+
+        await team.resume()
+        let outcome = await runTeam(team)
+        XCTAssertTrue(outcome.success, outcome.report)
+        XCTAssertEqual(worker.requests.count, 2)
+    }
+
+    func testEventsMergeAgentAndTeamEvents() async {
+        let lead = ScriptedClient.script([
+            toolTurn("p1", "board_plan", ["tasks": .array([["title": "One thing"]])]),
+            completeTurn("p2", "Planned"),
+            completeTurn("r1", "Done"),
+        ])
+        let spec = TeamSpec(members: [teamMember("lead", .lead), teamMember("worker", .worker)], goal: "One thing",
+                            defaultPolicy: quietPolicy())
+        let team = TeamRunner(spec: spec, surface: MockSurface(), clientFactory: factory(["lead": lead, "worker": shellWorker("worker")]))
+        let feed = team.events()
+        let collector = Task { () async -> (agentIDs: Set<String>, teamEvents: Int) in
+            var ids = Set<String>()
+            var count = 0
+            for await item in feed {
+                switch item {
+                case .agent(let envelope):
+                    ids.insert(envelope.agentID)
+                case .team(let event):
+                    count += 1
+                    if case .finished = event { return (ids, count) }
+                }
+            }
+            return (ids, count)
+        }
+        let outcome = await runTeam(team)
+        XCTAssertTrue(outcome.success, outcome.report)
+        let seen = await collector.value
+        XCTAssertEqual(seen.agentIDs, ["lead", "worker"], "agent events of the members (team notes come as team events)")
+        XCTAssertGreaterThan(seen.teamEvents, 5)
     }
 }
 
