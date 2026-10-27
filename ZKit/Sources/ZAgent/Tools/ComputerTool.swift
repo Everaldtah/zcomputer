@@ -1,132 +1,6 @@
 import Foundation
 import ZCore
 
-/// One vendor-neutral computer action, in the model's (screenshot) coordinate space.
-public enum ComputerAction: Hashable, Sendable {
-    case screenshot
-    case click(x: Int, y: Int, button: MouseButton)
-    case doubleClick(x: Int, y: Int)
-    case rightClick(x: Int, y: Int)
-    case mouseMove(x: Int, y: Int)
-    case drag(fromX: Int, fromY: Int, toX: Int, toY: Int)
-    /// Wheel ticks at a position (nil = centre of the screen); positive dy scrolls down, positive dx right.
-    case scroll(x: Int?, y: Int?, dx: Int, dy: Int)
-    case type(text: String)
-    /// xdotool-style combo: "Return", "ctrl+c", "cmd+space".
-    case key(combo: String)
-    case wait(seconds: Double)
-
-    /// The action names of the `computer` tool.
-    public static let actionNames = ["screenshot", "click", "double_click", "right_click", "mouse_move", "drag",
-                                     "scroll", "type", "key", "wait"]
-
-    public var name: String {
-        switch self {
-        case .screenshot: return "screenshot"
-        case .click: return "click"
-        case .doubleClick: return "double_click"
-        case .rightClick: return "right_click"
-        case .mouseMove: return "mouse_move"
-        case .drag: return "drag"
-        case .scroll: return "scroll"
-        case .type: return "type"
-        case .key: return "key"
-        case .wait: return "wait"
-        }
-    }
-
-    /// True for actions that only look (screenshot, wait, mouse_move).
-    public var isReadOnly: Bool {
-        switch self {
-        case .screenshot, .wait, .mouseMove: return true
-        default: return false
-        }
-    }
-
-    /// Parses the vendor-neutral `computer` arguments. Lenient: accepts `coordinate: [x, y]`, numbers as strings,
-    /// `key`/`keys`/`text` for key combos, `duration`/`seconds` for waits, `direction` + `amount` for scrolls.
-    public init(arguments: JSONValue) throws {
-        let a = ToolArguments(arguments, toolName: ComputerTool.toolName)
-        guard let rawAction = a.string(["action", "type_of_action", "command"]) else {
-            throw ZError.invalidArgument("computer needs an 'action' (one of \(Self.actionNames.joined(separator: ", "))).")
-        }
-        let action = rawAction.lowercased().replacingOccurrences(of: "-", with: "_").replacingOccurrences(of: " ", with: "_")
-
-        func point(_ xKey: String, _ yKey: String, _ arrayKey: String) -> (Int, Int)? {
-            if let x = a.int(xKey), let y = a.int(yKey) { return (x, y) }
-            if let arr = a[arrayKey]?.arrayValue, arr.count >= 2, let x = arr[0].lenientInt, let y = arr[1].lenientInt { return (x, y) }
-            return nil
-        }
-        func requirePoint() throws -> (Int, Int) {
-            guard let p = point("x", "y", "coordinate") else {
-                throw ZError.invalidArgument("computer \(action) needs integer 'x' and 'y' in screenshot pixels.")
-            }
-            return p
-        }
-
-        switch action {
-        case "screenshot", "take_screenshot", "capture":
-            self = .screenshot
-        case "click", "left_click":
-            let (x, y) = try requirePoint()
-            let button = MouseButton(rawValue: (a.string("button") ?? "left").lowercased()) ?? .left
-            if let clicks = a.int("clicks"), clicks >= 2, button == .left {
-                self = .doubleClick(x: x, y: y)
-            } else {
-                self = .click(x: x, y: y, button: button)
-            }
-        case "double_click", "doubleclick":
-            let (x, y) = try requirePoint()
-            self = .doubleClick(x: x, y: y)
-        case "right_click", "rightclick":
-            let (x, y) = try requirePoint()
-            self = .rightClick(x: x, y: y)
-        case "middle_click":
-            let (x, y) = try requirePoint()
-            self = .click(x: x, y: y, button: .middle)
-        case "mouse_move", "move", "hover":
-            let (x, y) = try requirePoint()
-            self = .mouseMove(x: x, y: y)
-        case "drag", "left_click_drag":
-            let start = point("x", "y", "coordinate") ?? point("start_x", "start_y", "start_coordinate")
-            let end = point("to_x", "to_y", "to_coordinate") ?? point("end_x", "end_y", "end_coordinate")
-            guard let start, let end else {
-                throw ZError.invalidArgument("computer drag needs 'x','y' (start) and 'to_x','to_y' (end).")
-            }
-            self = .drag(fromX: start.0, fromY: start.1, toX: end.0, toY: end.1)
-        case "scroll":
-            let p = point("x", "y", "coordinate")
-            var dx = a.int("dx") ?? 0
-            var dy = a.int("dy") ?? 0
-            if dx == 0, dy == 0 {
-                let amount = max(1, a.int(["amount", "clicks", "scroll_amount"]) ?? 3)
-                switch (a.string(["direction", "scroll_direction"]) ?? "down").lowercased() {
-                case "up": dy = -amount
-                case "left": dx = -amount
-                case "right": dx = amount
-                default: dy = amount
-                }
-            }
-            self = .scroll(x: p?.0, y: p?.1, dx: dx, dy: dy)
-        case "type", "type_text", "write":
-            guard let text = a.string(["text", "value", "content"]) else {
-                throw ZError.invalidArgument("computer type needs a 'text' string.")
-            }
-            self = .type(text: text)
-        case "key", "keys", "key_press", "press", "hotkey":
-            guard let combo = a.string(["keys", "key", "text", "combo"]), !combo.isEmpty else {
-                throw ZError.invalidArgument("computer key needs 'keys', e.g. \"Return\" or \"ctrl+c\".")
-            }
-            self = .key(combo: combo)
-        case "wait", "sleep", "pause":
-            let s = a.double(["seconds", "duration", "time"]) ?? 1
-            self = .wait(seconds: min(max(s, 0), 30))
-        default:
-            throw ZError.invalidArgument("Unknown computer action '\(rawAction)'. Use one of: \(Self.actionNames.joined(separator: ", ")).")
-        }
-    }
-}
-
 extension ToolArguments {
     func int(_ keys: [String]) -> Int? {
         for k in keys { if let v = int(k) { return v } }
@@ -139,8 +13,25 @@ extension ToolArguments {
     }
 }
 
-/// The vendor-neutral `computer` tool over a `ComputerSurface`. Every action returns a fresh screenshot,
-/// downscaled for the model; coordinates the model sends are mapped back to the surface.
+/// What a batch of computer actions produced.
+public struct ComputerExecution: Hashable, Sendable {
+    /// Human-readable lines ("Clicked at (10, 20).").
+    public var lines: [String] = []
+    /// Images produced by `screenshot` / `zoom`, in order.
+    public var images: [ImageData] = []
+    /// Answer to `cursor_position`, in model space.
+    public var cursor: ScreenPoint?
+    /// True when at least one action sent input to the machine.
+    public var changedScreen = false
+    /// True when the last action was `screenshot`.
+    public var endedWithScreenshot = false
+
+    public init() {}
+}
+
+/// The vendor-neutral `computer` tool over a `ComputerSurface` (research brief B1.1). Input actions return a fresh
+/// screenshot, downscaled for the model; the coordinates the model sends are mapped back to the surface.
+/// Also the executor behind `NativeComputerTool`.
 public struct ComputerTool: Tool {
     public static let toolName = "computer"
 
@@ -151,41 +42,74 @@ public struct ComputerTool: Tool {
     /// The screenshot size the model works in, when known (advertised in the tool description).
     public var modelDisplaySize: PixelSize?
 
-    private let state = ComputerToolState()
+    let state = ComputerToolState()
 
     public init(scaler: ScreenshotScaler = ScreenshotScaler(), resizer: any ImageResizer = PassThroughImageResizer(),
                 settleDelay: TimeInterval = 0.5, modelDisplaySize: PixelSize? = nil) {
         self.scaler = scaler; self.resizer = resizer; self.settleDelay = settleDelay; self.modelDisplaySize = modelDisplaySize
     }
 
+    // MARK: Spec
+
+    public static let baseDescription = "Operate the virtual machine's screen, mouse and keyboard. Coordinates are pixels in the most recent screenshot you received (origin top-left), unless the system prompt says the 0-1000 grid is used. Every action except 'wait' returns a fresh screenshot. Prefer the shell tool for anything that does not need the GUI."
+
+    /// The brief's flat schema (B1.1) plus `key_down` / `key_up`.
+    static let schemaJSON = #"""
+    {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["screenshot", "click", "double_click", "triple_click", "right_click", "middle_click",
+                   "mouse_move", "mouse_down", "mouse_up", "drag", "scroll", "type", "key", "key_down", "key_up", "wait", "zoom"],
+          "description": "What to do."
+        },
+        "x": {"type": "integer", "minimum": 0, "description": "Target x for click/double_click/triple_click/right_click/middle_click/mouse_move/mouse_down/mouse_up/scroll, and drag start x."},
+        "y": {"type": "integer", "minimum": 0, "description": "Target y (same actions as x)."},
+        "to_x": {"type": "integer", "minimum": 0, "description": "Drag end x (action=drag)."},
+        "to_y": {"type": "integer", "minimum": 0, "description": "Drag end y (action=drag)."},
+        "text": {"type": "string", "description": "Literal text to type (action=type). Unicode allowed. Use action=key for Enter/Tab/shortcuts."},
+        "keys": {"type": "string", "description": "Key or '+'-joined combination for action=key, xdotool names: 'Return', 'Escape', 'Tab', 'BackSpace', 'ctrl+c', 'ctrl+shift+t', 'super', 'alt+F4', 'Page_Down'. A single key for action=key_down/key_up (hold / release it)."},
+        "repeat": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Times to press 'keys' (action=key). Default 1."},
+        "modifiers": {"type": "string", "description": "Modifiers held during a click or scroll: 'shift', 'ctrl', 'alt', 'super', or '+'-joined."},
+        "direction": {"type": "string", "enum": ["up", "down", "left", "right"], "description": "Scroll direction (action=scroll)."},
+        "amount": {"type": "integer", "minimum": 1, "maximum": 30, "description": "Scroll wheel clicks (action=scroll). Default 3."},
+        "seconds": {"type": "number", "minimum": 0.1, "maximum": 30, "description": "Pause length (action=wait). Default 1."},
+        "region": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 4, "maxItems": 4,
+                   "description": "[x0, y0, x1, y1] to inspect at full resolution (action=zoom)."}
+      },
+      "required": ["action"],
+      "additionalProperties": false
+    }
+    """#
+
+    /// The parameters schema; without `zoom` when the resizer cannot crop.
+    public static func parameters(zoom: Bool) -> JSONValue {
+        guard case .object(var root)? = try? JSONValue.parse(schemaJSON),
+              case .object(var props)? = root["properties"] else {
+            return Schema.object(["action": Schema.string("What to do.", oneOf: ComputerAction.actionNames)], required: ["action"])
+        }
+        if !zoom {
+            props["region"] = nil
+            if case .object(var action)? = props["action"], let names = action["enum"]?.arrayValue {
+                action["enum"] = .array(names.filter { $0.stringValue != "zoom" })
+                props["action"] = .object(action)
+            }
+            root["properties"] = .object(props)
+        }
+        return .object(root)
+    }
+
     public var spec: ToolSpec {
-        var description = """
-        Control the machine's screen, mouse and keyboard. Actions: screenshot, click, double_click, right_click, \
-        mouse_move, drag (x,y → to_x,to_y), scroll (x,y + direction up/down/left/right + amount, or dx/dy), \
-        type (text), key (keys, xdotool style: "Return", "ctrl+c", "alt+F4"), wait (seconds). \
-        Coordinates are pixels in the latest screenshot, origin top-left. Every action returns a new screenshot.
-        """
+        var description = Self.baseDescription
         var metadata: [String: JSONValue] = [:]
         if let s = modelDisplaySize {
             description += " The screenshot is \(s.width)x\(s.height) pixels."
             metadata["display_width_px"] = .number(Double(s.width))
             metadata["display_height_px"] = .number(Double(s.height))
         }
-        let properties: [String: JSONValue] = [
-            "action": Schema.string("What to do.", oneOf: ComputerAction.actionNames),
-            "x": Schema.integer("X in screenshot pixels (start point for drag)."),
-            "y": Schema.integer("Y in screenshot pixels (start point for drag)."),
-            "to_x": Schema.integer("Drag end X."),
-            "to_y": Schema.integer("Drag end Y."),
-            "button": Schema.string("Mouse button for click (default left).", oneOf: ["left", "right", "middle"]),
-            "direction": Schema.string("Scroll direction.", oneOf: ["up", "down", "left", "right"]),
-            "amount": Schema.integer("Scroll wheel ticks (default 3)."),
-            "text": Schema.string("Text to type."),
-            "keys": Schema.string("Key combination for the key action, e.g. \"ctrl+s\"."),
-            "seconds": Schema.number("Seconds to wait (max 30)."),
-        ]
         return ToolSpec(name: Self.toolName, description: description,
-                        parameters: Schema.object(properties, required: ["action"]), metadata: metadata)
+                        parameters: Self.parameters(zoom: resizer.canCrop), metadata: metadata)
     }
 
     public func risk(of call: ToolCall) -> ToolRisk {
@@ -193,39 +117,53 @@ public struct ComputerTool: Tool {
         return .normal(Self.toolName)
     }
 
+    // MARK: Vendor-neutral invocation
+
     public func invoke(_ call: ToolCall, ctx: ToolContext) async throws -> ToolResult {
         let surface = try ctx.requireSurface(for: Self.toolName)
         let action = try ComputerAction(arguments: call.arguments)
-        return try await perform([action], callID: call.id, surface: surface)
+        let execution = try await execute([action], on: surface)
+        var lines = execution.lines
+        var followUp: ImageData?
+        if action.wantsFollowUpScreenshot {
+            do {
+                followUp = try await screenshotAfter(execution, on: surface)
+            } catch let e as ZError {
+                // The action itself worked; say so even when the screenshot failed.
+                lines.append("(No screenshot: \(e.description))")
+            }
+        }
+        var parts: [ContentPart] = []
+        if !lines.isEmpty { parts.append(.text(lines.joined(separator: "\n"))) }
+        parts += execution.images.map { ContentPart.image($0) }
+        if let followUp { parts.append(.image(followUp)) }
+        return ToolResult(callID: call.id, parts: parts.isEmpty ? [.text("OK")] : parts)
     }
 
-    /// Runs actions (model coordinates) and returns a result with a description and one fresh screenshot.
-    /// `adjustMapping` lets native bridges change the coordinate space (e.g. normalised coordinates).
-    public func perform(_ actions: [ComputerAction], callID: String, surface: any ComputerSurface,
-                        adjustMapping: (@Sendable (CoordinateMapping) -> CoordinateMapping)? = nil) async throws -> ToolResult {
+    // MARK: Execution
+
+    /// Runs actions in order (model coordinates) and stops at the first failure (throws).
+    /// `adjustMapping` lets native bridges change the coordinate space (e.g. Gemini's 0–999 grid).
+    public func execute(_ actions: [ComputerAction], on surface: any ComputerSurface,
+                        adjustMapping: (@Sendable (CoordinateMapping) -> CoordinateMapping)? = nil) async throws -> ComputerExecution {
         var mapping = await currentMapping(for: surface)
         if let adjustMapping { mapping = adjustMapping(mapping) }
-        var lines: [String] = []
-        var changedScreen = false
+        let guestOS = await surface.info.osFamily
+        var out = ComputerExecution()
         for action in actions {
-            lines.append(try await execute(action, on: surface, mapping: mapping))
-            if !action.isReadOnly { changedScreen = true }
+            try await run(action, on: surface, mapping: mapping, guestOS: guestOS, into: &out)
+            out.endedWithScreenshot = action == .screenshot
+            if !action.isReadOnly { out.changedScreen = true }
         }
-        if changedScreen, settleDelay > 0 {
+        return out
+    }
+
+    /// Waits `settleDelay` when the screen may have changed, then takes a screenshot for the model.
+    public func screenshotAfter(_ execution: ComputerExecution, on surface: any ComputerSurface) async throws -> ImageData {
+        if execution.changedScreen, settleDelay > 0 {
             try await Task.sleep(nanoseconds: UInt64(settleDelay * 1_000_000_000))
         }
-        do {
-            let shot = try await captureScreenshot(from: surface)
-            var parts: [ContentPart] = []
-            let text = lines.filter { !$0.isEmpty }.joined(separator: "\n")
-            if !text.isEmpty { parts.append(.text(text)) }
-            parts.append(.image(shot))
-            return ToolResult(callID: callID, parts: parts)
-        } catch let e as ZError {
-            // The action itself worked; say so even when the screenshot failed.
-            let text = (lines + ["(No screenshot: \(e.description))"]).joined(separator: "\n")
-            return ToolResult(callID: callID, text: text, isError: actions == [.screenshot])
-        }
+        return try await captureScreenshot(from: surface)
     }
 
     /// Takes a screenshot scaled for the model and remembers the matching coordinate mapping.
@@ -243,51 +181,171 @@ public struct ComputerTool: Tool {
         return scaler.mapping(for: await surface.displaySize, resizing: resizer.canResize)
     }
 
-    private func execute(_ action: ComputerAction, on surface: any ComputerSurface, mapping: CoordinateMapping) async throws -> String {
-        func p(_ x: Int, _ y: Int) -> ScreenPoint { mapping.toSurface(x: x, y: y) }
+    /// The tracked cursor position in surface coordinates (nil until the agent moved or clicked).
+    public func trackedCursor() async -> ScreenPoint? { await state.cursor }
+
+    private func run(_ action: ComputerAction, on surface: any ComputerSurface, mapping: CoordinateMapping,
+                     guestOS: String, into out: inout ComputerExecution) async throws {
+        func toSurface(_ p: ScreenPoint) -> ScreenPoint { mapping.toSurface(x: p.x, y: p.y) }
+        func toModel(_ p: ScreenPoint) -> ScreenPoint { mapping.toModel(x: p.x, y: p.y) }
+        func resolve(_ p: ScreenPoint?) async throws -> ScreenPoint {
+            if let p { return toSurface(p) }
+            if let c = await state.cursor { return c }
+            throw ZError.invalidArgument("The cursor position is unknown; give x and y.")
+        }
+        func describe(_ s: ScreenPoint) -> String { let m = toModel(s); return "(\(m.x), \(m.y))" }
+
         switch action {
         case .screenshot:
-            return ""
-        case .click(let x, let y, let button):
-            let s = p(x, y)
-            try await surface.click(x: s.x, y: s.y, button: button, count: 1)
-            return button == .left ? "Clicked at (\(x), \(y))." : "\(button.rawValue.capitalized)-clicked at (\(x), \(y))."
-        case .doubleClick(let x, let y):
-            let s = p(x, y)
-            try await surface.click(x: s.x, y: s.y, button: .left, count: 2)
-            return "Double-clicked at (\(x), \(y))."
-        case .rightClick(let x, let y):
-            let s = p(x, y)
-            try await surface.click(x: s.x, y: s.y, button: .right, count: 1)
-            return "Right-clicked at (\(x), \(y))."
-        case .mouseMove(let x, let y):
-            let s = p(x, y)
+            out.images.append(try await captureScreenshot(from: surface))
+
+        case .zoom(let region):
+            out.images.append(try await zoom(region, on: surface, mapping: mapping))
+            out.lines.append("Zoomed into \(region).")
+
+        case .click(let at, let button, let count, let modifiers):
+            let s = try await resolve(at)
+            try await withModifiers(modifiers, on: surface, guestOS: guestOS) {
+                try await surface.click(x: s.x, y: s.y, button: button, count: count)
+            }
+            await state.setCursor(s)
+            let what = action.name.replacingOccurrences(of: "_", with: "-").replacingOccurrences(of: "click", with: "clicked")
+            let verb = what == "clicked" ? "Clicked" : what.prefix(1).uppercased() + what.dropFirst()
+            out.lines.append("\(verb) at \(describe(s))\(modifiers.isEmpty ? "" : " holding \(modifiers.joined(separator: "+"))").")
+
+        case .mouseMove(let to):
+            let s = toSurface(to)
             try await surface.mouseMove(x: s.x, y: s.y)
-            return "Moved the mouse to (\(x), \(y))."
-        case .drag(let fx, let fy, let tx, let ty):
-            let a = p(fx, fy), b = p(tx, ty)
-            try await surface.drag(fromX: a.x, fromY: a.y, toX: b.x, toY: b.y)
-            return "Dragged from (\(fx), \(fy)) to (\(tx), \(ty))."
-        case .scroll(let x, let y, let dx, let dy):
-            let s: ScreenPoint
-            if let x, let y { s = p(x, y) } else { s = ScreenPoint(x: mapping.surfaceSize.width / 2, y: mapping.surfaceSize.height / 2) }
-            try await surface.scroll(x: s.x, y: s.y, dx: dx, dy: dy)
-            return "Scrolled (dx \(dx), dy \(dy))."
+            await state.setCursor(s)
+            out.lines.append("Moved the mouse to \(describe(s)).")
+
+        case .mouseDown(let at, let button):
+            let s = try await resolve(at)
+            try await surface.mouseDown(x: s.x, y: s.y, button: button)
+            await state.setCursor(s)
+            out.lines.append("Pressed the \(button.rawValue) button at \(describe(s)).")
+
+        case .mouseUp(let at, let button):
+            let s = try await resolve(at)
+            try await surface.mouseUp(x: s.x, y: s.y, button: button)
+            await state.setCursor(s)
+            out.lines.append("Released the \(button.rawValue) button at \(describe(s)).")
+
+        case .drag(let from, let to, let modifiers):
+            let a = try await resolve(from)
+            let b = toSurface(to)
+            try await withModifiers(modifiers, on: surface, guestOS: guestOS) {
+                try await surface.drag(fromX: a.x, fromY: a.y, toX: b.x, toY: b.y)
+            }
+            await state.setCursor(b)
+            out.lines.append("Dragged from \(describe(a)) to \(describe(b)).")
+
+        case .scroll(let at, let dx, let dy, let modifiers):
+            let s = at.map(toSurface) ?? ScreenPoint(x: mapping.surfaceSize.width / 2, y: mapping.surfaceSize.height / 2)
+            try await withModifiers(modifiers, on: surface, guestOS: guestOS) {
+                try await surface.scroll(x: s.x, y: s.y, dx: dx, dy: dy)
+            }
+            out.lines.append("Scrolled (dx \(dx), dy \(dy)) at \(describe(s)).")
+
         case .type(let text):
             try await surface.typeText(text)
-            return "Typed \(text.count) characters."
-        case .key(let combo):
-            try await surface.pressKeys(combo)
-            return "Pressed \(combo)."
+            out.lines.append("Typed \(text.count) characters.")
+
+        case .key(let combo, let count):
+            let keys = KeyNames.normalize(combo, guestOS: guestOS)
+            for _ in 0..<max(1, count) { try await surface.pressKeys(keys) }
+            out.lines.append(count > 1 ? "Pressed \(keys) \(count) times." : "Pressed \(keys).")
+
+        case .keyDown(let key):
+            let k = KeyNames.normalize(key, guestOS: guestOS)
+            do { try await surface.keyDown(k) } catch { throw Self.explain(error, "Holding keys (key_down)") }
+            out.lines.append("Holding \(k).")
+
+        case .keyUp(let key):
+            let k = KeyNames.normalize(key, guestOS: guestOS)
+            do { try await surface.keyUp(k) } catch { throw Self.explain(error, "Releasing held keys (key_up)") }
+            out.lines.append("Released \(k).")
+
+        case .holdKey(let key, let seconds):
+            let k = KeyNames.normalize(key, guestOS: guestOS)
+            do { try await surface.keyDown(k) } catch { throw Self.explain(error, "Holding keys (hold_key)") }
+            do {
+                if seconds > 0 { try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+            } catch {
+                try? await surface.keyUp(k)
+                throw error
+            }
+            try await surface.keyUp(k)
+            out.lines.append("Held \(k) for \(seconds) s.")
+
         case .wait(let seconds):
             if seconds > 0 { try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
-            return "Waited \(seconds) s."
+            out.lines.append("Waited \(seconds) s.")
+
+        case .cursorPosition:
+            guard let c = await state.cursor else {
+                throw ZError.tool(name: Self.toolName, message: "The cursor position is unknown (no mouse action yet).")
+            }
+            let m = toModel(c)
+            out.cursor = m
+            out.lines.append("X=\(m.x), Y=\(m.y)")
         }
+    }
+
+    /// Holds modifier keys (key_down) around `body`, releasing them in reverse order even when it fails.
+    private func withModifiers(_ modifiers: [String], on surface: any ComputerSurface, guestOS: String,
+                               _ body: () async throws -> Void) async throws {
+        guard !modifiers.isEmpty else {
+            try await body()
+            return
+        }
+        var held: [String] = []
+        do {
+            for m in modifiers {
+                let key = KeyNames.normalizeKey(m, guestOS: guestOS)
+                try await surface.keyDown(key)
+                held.append(key)
+            }
+            try await body()
+        } catch {
+            for k in held.reversed() { try? await surface.keyUp(k) }
+            throw Self.explain(error, "Holding modifier keys (\(modifiers.joined(separator: "+")))")
+        }
+        for k in held.reversed() { try await surface.keyUp(k) }
+    }
+
+    /// `[x0, y0, x1, y1]` (model space) at full resolution, scaled to fit the normal screenshot size.
+    private func zoom(_ region: [Int], on surface: any ComputerSurface, mapping: CoordinateMapping) async throws -> ImageData {
+        guard resizer.canCrop else {
+            throw ZError.tool(name: Self.toolName, message: "zoom is not available on this machine yet; take a screenshot instead.")
+        }
+        guard region.count == 4 else { throw ZError.invalidArgument("zoom needs region [x0, y0, x1, y1].") }
+        let a = mapping.toSurface(x: min(region[0], region[2]), y: min(region[1], region[3]))
+        let b = mapping.toSurface(x: max(region[0], region[2]), y: max(region[1], region[3]))
+        let raw = try await surface.screenshot().withDetectedSize()
+        let surfaceSize = mapping.surfaceSize
+        let fx = Double(raw.width ?? surfaceSize.width) / Double(max(1, surfaceSize.width))
+        let fy = Double(raw.height ?? surfaceSize.height) / Double(max(1, surfaceSize.height))
+        let rect = ScreenRect(x: Int(Double(a.x) * fx), y: Int(Double(a.y) * fy),
+                              width: max(1, Int(Double(b.x - a.x + 1) * fx)), height: max(1, Int(Double(b.y - a.y + 1) * fy)))
+        let cropped = try await resizer.crop(raw, to: rect).withDetectedSize()
+        let target = ScreenshotScaler.fit(PixelSize(width: rect.width, height: rect.height),
+                                          into: scaler.scaledSize(for: surfaceSize))
+        return try await resizer.resize(cropped, to: target).withDetectedSize()
+    }
+
+    static func explain(_ error: Error, _ what: String) -> Error {
+        if let z = error as? ZError, case .unsupported = z {
+            return ZError.tool(name: toolName, message: "\(what) is not supported on this machine.")
+        }
+        return error
     }
 }
 
-/// Mutable bits of a ComputerTool (the coordinate mapping of the last screenshot).
+/// Mutable bits of a ComputerTool: the coordinate mapping of the last screenshot and the tracked cursor.
 actor ComputerToolState {
     private(set) var mapping: CoordinateMapping?
+    private(set) var cursor: ScreenPoint?
     func setMapping(_ m: CoordinateMapping) { mapping = m }
+    func setCursor(_ p: ScreenPoint) { cursor = p }
 }

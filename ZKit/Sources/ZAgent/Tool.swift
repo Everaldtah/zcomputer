@@ -15,10 +15,15 @@ public protocol Tool: Sendable {
 
     /// Runs the call. Throwing is fine: `ToolRegistry.execute` turns errors into error results the model can read.
     func invoke(_ call: ToolCall, ctx: ToolContext) async throws -> ToolResult
+
+    /// When true, a failed call makes the later calls to this tool in the same model turn come back as
+    /// `ToolBatch.notExecutedMessage` without running (Anthropic computer-toolset batch rule). Default false.
+    var stopsBatchOnFailure: Bool { get }
 }
 
 public extension Tool {
     func risk(of call: ToolCall) -> ToolRisk { .normal(spec.name) }
+    var stopsBatchOnFailure: Bool { false }
 }
 
 // MARK: - Risk
@@ -42,14 +47,45 @@ public struct ToolRisk: Hashable, Sendable, Codable {
     public var kind: String
     /// Human-readable reason shown on the approval card ("recursive delete", "formats a disk").
     public var reason: String?
+    /// Always ask, whatever the approval mode or session grants, and stop the run when denied
+    /// (provider safety checks: OpenAI `pending_safety_checks`, Gemini `require_confirmation`).
+    public var mandatory: Bool
 
-    public init(level: Level, kind: String, reason: String? = nil) {
-        self.level = level; self.kind = kind; self.reason = reason
+    public init(level: Level, kind: String, reason: String? = nil, mandatory: Bool = false) {
+        self.level = level; self.kind = kind; self.reason = reason; self.mandatory = mandatory
     }
 
     public static func readOnly(_ kind: String) -> ToolRisk { .init(level: .readOnly, kind: kind) }
     public static func normal(_ kind: String, reason: String? = nil) -> ToolRisk { .init(level: .normal, kind: kind, reason: reason) }
     public static func destructive(_ kind: String, reason: String) -> ToolRisk { .init(level: .destructive, kind: kind, reason: reason) }
+    /// A provider safety check that only a human may clear.
+    public static func safetyCheck(_ kind: String, reason: String) -> ToolRisk {
+        .init(level: .destructive, kind: kind, reason: reason, mandatory: true)
+    }
+}
+
+// MARK: - Batches
+
+/// Where a call sits among the calls to the same tool in one model turn.
+public struct ToolBatch: Sendable {
+    /// The exact text Anthropic expects for blocks after a failed computer action.
+    public static let notExecutedMessage = "Not executed: an earlier computer action in this turn failed."
+
+    public var index: Int
+    public var count: Int
+    public let state: ToolBatchState
+    public var isLast: Bool { index >= count - 1 }
+
+    public init(index: Int, count: Int, state: ToolBatchState) {
+        self.index = index; self.count = count; self.state = state
+    }
+}
+
+/// Shared by the calls of one batch.
+public actor ToolBatchState {
+    public private(set) var failed = false
+    public init() {}
+    public func markFailed() { failed = true }
 }
 
 // MARK: - Context
@@ -68,6 +104,8 @@ public struct ToolContext: Sendable {
     public var userInput: UserInputChannel?
     /// Lets tools end the run (`task_complete`). Nil outside a run.
     public var control: RunControl?
+    /// Position among this turn's calls to the same tool (nil outside a run: treated as a batch of one).
+    public var batch: ToolBatch?
 
     public init(agentID: String,
                 agentName: String? = nil,
@@ -77,7 +115,8 @@ public struct ToolContext: Sendable {
                 approval: ApprovalGate,
                 scratchDirectory: URL? = nil,
                 userInput: UserInputChannel? = nil,
-                control: RunControl? = nil) {
+                control: RunControl? = nil,
+                batch: ToolBatch? = nil) {
         self.agentID = agentID
         self.agentName = agentName ?? emitter.agentName
         self.surface = surface
@@ -88,6 +127,7 @@ public struct ToolContext: Sendable {
             ?? FileManager.default.temporaryDirectory.appendingPathComponent("zagent-\(agentID)", isDirectory: true)
         self.userInput = userInput
         self.control = control
+        self.batch = batch
     }
 
     /// The surface, or a tool error explaining that no machine is attached.
@@ -113,12 +153,19 @@ public actor RunControl {
     }
 
     public private(set) var completion: Completion?
+    /// Set when the run must stop (e.g. the user declined a provider safety check).
+    public private(set) var haltReason: String?
 
     public init() {}
 
     /// Marks the run as finished; the runner stops after the current batch of tool calls.
     public func complete(summary: String, success: Bool) {
         completion = Completion(summary: summary, success: success)
+    }
+
+    /// Stops the run after the current batch of tool calls, without success.
+    public func halt(reason: String) {
+        if haltReason == nil { haltReason = reason }
     }
 }
 

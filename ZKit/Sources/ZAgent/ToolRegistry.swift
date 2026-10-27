@@ -48,19 +48,34 @@ public struct ToolRegistry: Sendable {
         return r
     }
 
-    /// Risk of a call (unknown tools are `.normal`).
-    public func risk(of call: ToolCall) -> ToolRisk {
-        byName[call.name]?.risk(of: call) ?? .normal(call.name)
+    /// The tool a call is routed to: the exact name, else the namespace before the first "." — native computer
+    /// members arrive as "computer.left_click" (Anthropic toolset) or "computer.click" (Gemini) and go to "computer".
+    public func resolve(_ name: String) -> (any Tool)? {
+        if let t = byName[name] { return t }
+        if let dot = name.firstIndex(of: "."), let t = byName[String(name[..<dot])] { return t }
+        return nil
     }
 
-    /// Runs one call: unknown-tool check → approval (when the gate requires it) → invoke.
+    /// Name of the registered tool a call name routes to.
+    public func resolvedName(_ name: String) -> String? { resolve(name)?.spec.name }
+
+    /// Risk of a call (unknown tools are `.normal`).
+    public func risk(of call: ToolCall) -> ToolRisk {
+        resolve(call.name)?.risk(of: call) ?? .normal(call.name)
+    }
+
+    /// Runs one call: routing → batch check → approval (when the gate requires it) → invoke.
     /// Never throws: failures, denials and cancellation come back as error results the model can read.
     /// `onApprovalWait(true)` is called just before waiting for the user, `onApprovalWait(false)` after the decision.
     public func execute(_ call: ToolCall, ctx: ToolContext,
                         onApprovalWait: (@Sendable (Bool) async -> Void)? = nil) async -> ToolResult {
-        guard let tool = byName[call.name] else {
+        guard let tool = resolve(call.name) else {
             let available = order.joined(separator: ", ")
             return ToolResult(callID: call.id, text: "Unknown tool '\(call.name)'. Available tools: \(available).", isError: true)
+        }
+        let stopsBatch = tool.stopsBatchOnFailure
+        if stopsBatch, let batch = ctx.batch, await batch.state.failed {
+            return ToolResult(callID: call.id, text: ToolBatch.notExecutedMessage, isError: true)
         }
         let risk = tool.risk(of: call)
         if await ctx.approval.needsApproval(risk) {
@@ -68,9 +83,13 @@ public struct ToolRegistry: Sendable {
             let request = ApprovalRequest(id: call.id, agentID: ctx.agentID, toolName: call.name, summary: summary,
                                           arguments: call.arguments)
             await onApprovalWait?(true)
-            let decision = await ctx.approval.request(request, kind: risk.kind, emitter: ctx.emitter)
+            let decision = await ctx.approval.request(request, kind: risk.kind, mandatory: risk.mandatory, emitter: ctx.emitter)
             await onApprovalWait?(false)
             if decision == .deny {
+                if stopsBatch { await ctx.batch?.state.markFailed() }
+                if risk.mandatory {
+                    await ctx.control?.halt(reason: "The user declined a safety confirmation: \(risk.reason ?? call.name).")
+                }
                 return ToolResult(callID: call.id,
                                   text: "The user denied this \(call.name) call (\(risk.reason ?? risk.kind)). Do not retry it; choose another approach or ask the user.",
                                   isError: true)
@@ -79,17 +98,19 @@ public struct ToolRegistry: Sendable {
         if Task.isCancelled {
             return ToolResult(callID: call.id, text: "Cancelled before \(call.name) ran.", isError: true)
         }
+        var result: ToolResult
         do {
-            var result = try await tool.invoke(call, ctx: ctx)
+            result = try await tool.invoke(call, ctx: ctx)
             result.callID = call.id
-            return result
         } catch is CancellationError {
-            return ToolResult(callID: call.id, text: "\(call.name) was cancelled.", isError: true)
+            result = ToolResult(callID: call.id, text: "\(call.name) was cancelled.", isError: true)
         } catch let e as ZError {
-            return ToolResult(callID: call.id, text: e.description, isError: true)
+            result = ToolResult(callID: call.id, text: e.description, isError: true)
         } catch {
-            return ToolResult(callID: call.id, text: "\(call.name) failed: \(error)", isError: true)
+            result = ToolResult(callID: call.id, text: "\(call.name) failed: \(error)", isError: true)
         }
+        if result.isError, stopsBatch { await ctx.batch?.state.markFailed() }
+        return result
     }
 
     /// One line for the approval card.
@@ -103,6 +124,8 @@ public struct ToolRegistry: Sendable {
             what = "Write \(args.string("path") ?? "?")"
         case ComputerTool.toolName:
             what = "Computer: \(args.string("action") ?? "?")"
+        case _ where call.name.hasPrefix(ComputerTool.toolName + "."):
+            what = "Computer: \(call.name.dropFirst(ComputerTool.toolName.count + 1))"
         default:
             let json = call.arguments.jsonString()
             what = "\(call.name) \(json.count > 200 ? String(json.prefix(200)) + "…" : json)"

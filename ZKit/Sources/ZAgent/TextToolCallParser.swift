@@ -34,10 +34,10 @@ public struct TextToolCallParser: Sendable {
 
         // 1. Fenced blocks and <tool_call> tags: accept explicit calls, or any call to a known tool.
         var blocks = Self.fencedBlocks(in: text)
-        for tag in ["tool_call", "function_call"] {
-            for b in Self.taggedBlocks(in: text, tag: tag) where !blocks.contains(where: { $0.range.overlaps(b.range) }) {
-                blocks.append(b)
-            }
+        let tagged = Self.taggedBlocks(in: text, tag: "tool_call") + Self.taggedBlocks(in: text, tag: "function_call")
+            + Self.delimitedBlocks(in: text, open: "<|python_tag|>", closes: ["<|eom_id|>", "<|eot_id|>"])
+        for b in tagged where !blocks.contains(where: { $0.range.overlaps(b.range) }) {
+            blocks.append(b)
         }
         for block in blocks.sorted(by: { $0.range.lowerBound < $1.range.lowerBound }) {
             let found = Self.candidates(fromJSONText: block.content)
@@ -67,16 +67,14 @@ public struct TextToolCallParser: Sendable {
 
     /// The instructions appended to the system prompt in text mode.
     public static func formatInstructions(tools: [ToolSpec]) -> String {
+        let names = tools.map(\.name).joined(separator: "|")
         var s = """
         ## How to call tools
-        You cannot call tools natively. To use a tool, put exactly one fenced JSON block in your reply, like this:
-
+        You can act only by replying with exactly ONE fenced JSON block and nothing after it:
         ```json
-        {"tool": "<tool name>", "arguments": { ... }}
+        {"tool": "<\(names)>", "arguments": { ... }}
         ```
-
-        Use one tool call per reply, then stop and wait: the result comes back in the next message. \
-        Write any explanation before the block. When the task is finished, call task_complete.
+        Put any reasoning BEFORE the block, in at most two sentences. Wait for the result before the next action.
 
         Available tools:
         """
@@ -249,6 +247,21 @@ public struct TextToolCallParser: Sendable {
         let openTag = "<\(tag)>", closeTag = "</\(tag)>"
         while cursor < text.endIndex, let open = text.range(of: openTag, options: [.caseInsensitive], range: cursor..<text.endIndex) {
             let close = text.range(of: closeTag, options: [.caseInsensitive], range: open.upperBound..<text.endIndex)
+            let content = text[open.upperBound..<(close?.lowerBound ?? text.endIndex)]
+            let end = close?.upperBound ?? text.endIndex
+            blocks.append(Block(range: open.lowerBound..<end, content: String(content)))
+            cursor = end
+        }
+        return blocks
+    }
+
+    /// `open` … first of `closes` (or the end of the text), e.g. `<|python_tag|>{…}<|eom_id|>`.
+    static func delimitedBlocks(in text: String, open openMark: String, closes: [String]) -> [Block] {
+        var blocks: [Block] = []
+        var cursor = text.startIndex
+        while cursor < text.endIndex, let open = text.range(of: openMark, range: cursor..<text.endIndex) {
+            let close = closes.compactMap { text.range(of: $0, range: open.upperBound..<text.endIndex) }
+                .min(by: { $0.lowerBound < $1.lowerBound })
             let content = text[open.upperBound..<(close?.lowerBound ?? text.endIndex)]
             let end = close?.upperBound ?? text.endIndex
             blocks.append(Block(range: open.lowerBound..<end, content: String(content)))

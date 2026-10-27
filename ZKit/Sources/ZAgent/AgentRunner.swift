@@ -59,7 +59,10 @@ public actor AgentRunner {
     ///     `memory` is set, task tools always). `extraTools` are added on top either way (e.g. team tools).
     ///   - memoryContext: builds the memory block of the system prompt when `memory` is set (nil disables it).
     ///   - imageResizer: downscales screenshots (the app passes a CoreGraphics resizer; the default keeps them as-is).
-    ///   - nativeBridge: native computer-use translation, used when the policy allows it and the model supports it.
+    ///   - nativeBridge: native computer-use translation. Nil = the default bridge for the model's
+    ///     `nativeComputerUse` kind (`NativeComputerBridges.bridge(for:)`); used only when `policy.useNativeComputerUse`
+    ///     is on and tools are called natively. Pass e.g. `AnthropicComputerBridge(version: .legacy20251124)` for
+    ///     models on the older tool version.
     public init(id: String = UUID().uuidString,
                 name: String = "Agent",
                 client: any LLMClient,
@@ -312,7 +315,13 @@ public actor AgentRunner {
             totalUsage = totalUsage + step.usage
             if step.usage != Usage() { emitter.emit(.usage(step.usage)) }
 
-            let calls = resolveCalls(step, setup: setup)
+            var calls = resolveCalls(step, setup: setup)
+            var resultNote: String?
+            if setup.textMode, calls.count > 1 {
+                // Text protocol: one action per reply. Run the first and say so.
+                calls = [calls[0]]
+                resultNote = "Only the first action was run. Reply with exactly one fenced JSON block per message."
+            }
             let assistant = assistantMessage(step, calls: calls, textMode: setup.textMode)
             if !assistant.parts.isEmpty {
                 transcript.append(assistant)
@@ -321,6 +330,13 @@ public actor AgentRunner {
             if isStopping { return (stoppedOutcome(), .stopped) }
 
             if calls.isEmpty {
+                if setup.textMode, Self.looksLikeToolAttempt(step.text) {
+                    // A malformed action block: ask again (counts as a step).
+                    let retry = ChatMessage.user(Self.unparsableActionMessage)
+                    transcript.append(retry)
+                    emitter.emit(.message(retry))
+                    continue
+                }
                 // A plain answer ends the run, unless the user said something meanwhile.
                 if !queuedMessages.isEmpty { continue }
                 let text = step.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -333,22 +349,29 @@ public actor AgentRunner {
             }
 
             transition(to: .acting)
+            let batches = Self.batches(for: calls, registry: setup.registry)
             var results: [ToolResult] = []
-            for call in calls {
+            for (call, batch) in zip(calls, batches) {
                 let completed = await control.completion != nil
-                if isStopping || completed {
-                    results.append(ToolResult(callID: call.id, text: "Skipped: the run \(completed ? "was completed" : "was stopped") before this call.", isError: true))
+                let halted = await control.haltReason != nil
+                if isStopping || completed || halted {
+                    let why = completed ? "was completed" : "was stopped"
+                    results.append(ToolResult(callID: call.id, text: "Skipped: the run \(why) before this call.", isError: true))
                     continue
                 }
                 await waitIfPaused()
                 emitter.emit(.toolCall(call))
-                let result = await execute(call, registry: setup.registry, control: control)
+                let result = await execute(call, registry: setup.registry, control: control, batch: batch)
                 emitter.emit(.toolResult(result))
                 for image in result.images { emitter.emit(.screenshot(image)) }
                 results.append(result)
             }
-            appendToolResults(results, calls: calls, textMode: setup.textMode)
+            appendToolResults(results, calls: calls, textMode: setup.textMode, note: resultNote)
 
+            if let reason = await control.haltReason {
+                emitter.emit(.error(reason))
+                return (outcome(success: false, reason), .stopped)
+            }
             if let done = await control.completion {
                 return (outcome(success: done.success, done.summary), .finished)
             }
@@ -418,10 +441,16 @@ public actor AgentRunner {
         }
         registry.register(extraTools)
 
-        if policy.useNativeComputerUse, !textMode, let bridge = nativeBridge, caps.nativeComputerUse == bridge.kind,
+        // Native computer use: the explicit bridge, or the default one for the model's native tool kind.
+        var nativeComputer = false
+        if policy.useNativeComputerUse, !textMode,
+           let bridge = nativeBridge ?? NativeComputerBridges.bridge(for: caps.nativeComputerUse),
+           caps.nativeComputerUse == bridge.kind,
            let computer, let modelSize, registry.contains(ComputerTool.toolName) {
             registry.remove(named: ComputerTool.toolName)
-            registry.register(NativeComputerTool(bridge: bridge, computer: computer, modelDisplaySize: modelSize))
+            let features = ComputerFeatures(zoom: computer.resizer.canCrop, heldKeys: true)
+            registry.register(NativeComputerTool(bridge: bridge, computer: computer, modelDisplaySize: modelSize, features: features))
+            nativeComputer = true
         }
 
         var memoryBlock: String?
@@ -432,7 +461,7 @@ public actor AgentRunner {
         let specs = registry.specs
         let prompt = SystemPromptBuilder(agentName: name, instructions: instructions, surfaceInfo: info, screenSize: modelSize,
                                          memoryContext: memoryBlock, tools: specs, textToolMode: textMode,
-                                         vision: caps.vision).build()
+                                         vision: caps.vision, nativeComputer: nativeComputer).build()
         var budget = policy.tokenBudget
         if let window = caps.contextWindow, window > 0 { budget = min(budget, window * 3 / 4) }
         let context = ContextManager(keepScreenshots: policy.keepScreenshots, tokenBudget: budget)
@@ -507,7 +536,7 @@ public actor AgentRunner {
         return ChatMessage(role: .assistant, parts: parts)
     }
 
-    private func appendToolResults(_ results: [ToolResult], calls: [ToolCall], textMode: Bool) {
+    private func appendToolResults(_ results: [ToolResult], calls: [ToolCall], textMode: Bool, note: String? = nil) {
         guard !results.isEmpty else { return }
         guard textMode else {
             transcript.append(.toolResults(results))
@@ -517,18 +546,47 @@ public actor AgentRunner {
         var parts: [ContentPart] = []
         for (call, result) in zip(calls, results) {
             let body = result.text.isEmpty ? "(no text output)" : result.text
-            parts.append(.text("Result of \(call.name)\(result.isError ? " (error)" : ""):\n\(body)"))
+            parts.append(.text("Result of \(call.name)\(result.isError ? " (error)" : ""): \(body)"))
             parts += result.images.map { ContentPart.image($0) }
         }
+        if let note { parts.append(.text(note)) }
         transcript.append(ChatMessage(role: .user, parts: parts))
     }
 
-    private func execute(_ call: ToolCall, registry: ToolRegistry, control: RunControl) async -> ToolResult {
+    private func execute(_ call: ToolCall, registry: ToolRegistry, control: RunControl, batch: ToolBatch?) async -> ToolResult {
         let ctx = ToolContext(agentID: id, agentName: name, surface: surface, memory: memory, emitter: emitter,
-                              approval: approvalGate, scratchDirectory: scratchDirectory, userInput: userInput, control: control)
+                              approval: approvalGate, scratchDirectory: scratchDirectory, userInput: userInput,
+                              control: control, batch: batch)
         return await registry.execute(call, ctx: ctx, onApprovalWait: { waiting in
             await self.approvalWaitChanged(waiting)
         })
+    }
+
+    /// Groups this turn's calls by the tool they route to and gives each its position in that group.
+    static func batches(for calls: [ToolCall], registry: ToolRegistry) -> [ToolBatch] {
+        let names = calls.map { registry.resolvedName($0.name) ?? $0.name }
+        var counts: [String: Int] = [:]
+        for n in names { counts[n, default: 0] += 1 }
+        var states: [String: ToolBatchState] = [:]
+        var seen: [String: Int] = [:]
+        var out: [ToolBatch] = []
+        for n in names {
+            let state = states[n] ?? ToolBatchState()
+            states[n] = state
+            let index = seen[n, default: 0]
+            seen[n] = index + 1
+            out.append(ToolBatch(index: index, count: counts[n] ?? 1, state: state))
+        }
+        return out
+    }
+
+    static let unparsableActionMessage = "Could not parse an action. Reply with one fenced JSON block."
+
+    /// Text that seems to contain a (malformed) action block rather than a final answer.
+    static func looksLikeToolAttempt(_ text: String) -> Bool {
+        let t = text.lowercased()
+        return t.contains("```json") || t.contains("<tool_call>") || t.contains("<|python_tag|>")
+            || (t.contains("\"tool\"") && t.contains("{")) || (t.contains("\"arguments\"") && t.contains("{"))
     }
 
     private func approvalWaitChanged(_ waiting: Bool) {

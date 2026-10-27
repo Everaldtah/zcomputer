@@ -18,14 +18,14 @@ public struct TaskTool: Tool {
         switch operation {
         case .complete:
             return ToolSpec(name: operation.rawValue,
-                            description: "Finish the task. Call this exactly once when the task is done, or when it cannot be done, with a short summary for the user.",
+                            description: "Call exactly once when the task is finished or cannot be finished.",
                             parameters: Schema.object([
                                 "summary": Schema.string("What was done and the result, for the user."),
                                 "success": Schema.boolean("True when the task was accomplished."),
-                            ], required: ["summary"]))
+                            ], required: ["summary", "success"]))
         case .askUser:
             return ToolSpec(name: operation.rawValue,
-                            description: "Ask the user a question and wait for the answer. Use only when you cannot continue without their input.",
+                            description: "Ask the human a question when you are blocked or need a decision. The run pauses until they answer.",
                             parameters: Schema.object([
                                 "question": Schema.string("The question, self-contained."),
                             ], required: ["question"]))

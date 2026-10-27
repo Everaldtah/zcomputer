@@ -5,26 +5,29 @@ import ZCore
 /// Destructive commands (see `DestructiveCommandDetector`) are marked for approval.
 public struct ShellTool: Tool {
     public static let toolName = "shell"
-    public static let defaultTimeout: TimeInterval = 120
-    public static let maxTimeout: TimeInterval = 1800
+    public static let defaultTimeout: TimeInterval = 60
+    public static let maxTimeout: TimeInterval = 600
 
-    /// Characters of stdout / stderr kept in the result (head + tail).
+    /// Characters of stdout and of stderr kept in the result (head + tail), 16 kB each per the brief.
     public var maxOutputCharacters: Int
 
     public init(maxOutputCharacters: Int = 16_000) { self.maxOutputCharacters = maxOutputCharacters }
 
+    /// Brief B1.2 schema.
+    static let schemaJSON = #"""
+    {"type": "object",
+     "properties": {"command": {"type": "string", "description": "The bash command line."},
+                    "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 600, "description": "Default 60."}},
+     "required": ["command"], "additionalProperties": false}
+    """#
+
     public var spec: ToolSpec {
-        ToolSpec(
+        let parameters = (try? JSONValue.parse(Self.schemaJSON))
+            ?? Schema.object(["command": Schema.string("The bash command line.")], required: ["command"])
+        return ToolSpec(
             name: Self.toolName,
-            description: """
-            Run a shell command inside the machine (bash -lc on Linux) and get stdout, stderr and the exit code. \
-            Prefer this over the GUI for files, installs and anything scriptable. Commands run non-interactively: \
-            pass -y to installers and avoid programs that wait for input.
-            """,
-            parameters: Schema.object([
-                "command": Schema.string("The command line to run."),
-                "timeout": Schema.integer("Seconds before the command is killed (default 120, max 1800)."),
-            ], required: ["command"]))
+            description: "Run one bash command inside the virtual machine through the guest agent (bash -lc). Returns exit_code, stdout, stderr (truncated to 16 kB each). Destructive commands may require user approval.",
+            parameters: parameters)
     }
 
     public func risk(of call: ToolCall) -> ToolRisk {
@@ -41,7 +44,7 @@ public struct ShellTool: Tool {
             throw ZError.invalidArgument("shell needs a non-empty 'command'.")
         }
         let surface = try ctx.requireSurface(for: Self.toolName)
-        let timeout = min(max(args.double("timeout") ?? Self.defaultTimeout, 1), Self.maxTimeout)
+        let timeout = min(max(args.double("timeout_seconds") ?? args.double("timeout") ?? Self.defaultTimeout, 1), Self.maxTimeout)
         let result: ShellResult
         do {
             result = try await surface.shell(command, timeout: timeout)
@@ -52,15 +55,19 @@ public struct ShellTool: Tool {
         return ToolResult(callID: call.id, text: format(result), isError: result.exitCode != 0)
     }
 
+    /// `{"exit_code":0,"stdout":"…","stderr":"…","truncated":false,"duration_s":0.4}` (brief B1.2), so every model
+    /// parses it the same way.
     func format(_ r: ShellResult) -> String {
-        var out = "exit code \(r.exitCode) (\(String(format: "%.1f", r.durationSeconds)) s)"
         let stdout = TextLimits.truncate(r.stdout, max: maxOutputCharacters)
-        let stderr = TextLimits.truncate(r.stderr, max: maxOutputCharacters / 2)
-        if !stdout.text.isEmpty { out += "\n" + stdout.text }
-        if !stderr.text.isEmpty { out += "\n[stderr]\n" + stderr.text }
-        if stdout.text.isEmpty, stderr.text.isEmpty { out += "\n(no output)" }
-        if r.truncated || stdout.truncated || stderr.truncated { out += "\n[output truncated]" }
-        return out
+        let stderr = TextLimits.truncate(r.stderr, max: maxOutputCharacters)
+        let result: JSONValue = .object([
+            "exit_code": .number(Double(r.exitCode)),
+            "stdout": .string(stdout.text),
+            "stderr": .string(stderr.text),
+            "truncated": .bool(r.truncated || stdout.truncated || stderr.truncated),
+            "duration_s": .number((r.durationSeconds * 10).rounded() / 10),
+        ])
+        return result.jsonString()
     }
 }
 

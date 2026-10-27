@@ -25,6 +25,7 @@ public actor ApprovalGate {
     private struct Pending {
         var request: ApprovalRequest
         var kind: String
+        var mandatory: Bool
         var emitter: AgentEmitter?
         var continuation: CheckedContinuation<ApprovalDecision, Never>
     }
@@ -41,6 +42,7 @@ public actor ApprovalGate {
 
     /// Whether a call with this risk has to be approved under the current mode and session grants.
     public func needsApproval(_ risk: ToolRisk) -> Bool {
+        if risk.mandatory { return true }
         if alwaysAllowedKinds.contains(risk.kind) { return false }
         switch mode {
         case .never: return false
@@ -50,9 +52,11 @@ public actor ApprovalGate {
     }
 
     /// Emits `.approvalRequested` and waits for the user's decision. Returns `.deny` when the waiting task is
-    /// cancelled or `cancelAll()` is called. `.approveAlways` adds `kind` to the session grants.
-    public func request(_ request: ApprovalRequest, kind: String, emitter: AgentEmitter? = nil) async -> ApprovalDecision {
-        if alwaysAllowedKinds.contains(kind) { return .approve }
+    /// cancelled or `cancelAll()` is called. `.approveAlways` adds `kind` to the session grants, except for
+    /// `mandatory` requests (provider safety checks), which are never granted for the session.
+    public func request(_ request: ApprovalRequest, kind: String, mandatory: Bool = false,
+                        emitter: AgentEmitter? = nil) async -> ApprovalDecision {
+        if !mandatory, alwaysAllowedKinds.contains(kind) { return .approve }
         if Task.isCancelled { return .deny }
         if pending[request.id] != nil {
             // Same id twice (a confused provider): refuse the duplicate rather than leaking a continuation.
@@ -63,7 +67,7 @@ public actor ApprovalGate {
         em?.emit(.approvalRequested(request))
         return await withTaskCancellationHandler {
             await withCheckedContinuation { (c: CheckedContinuation<ApprovalDecision, Never>) in
-                pending[id] = Pending(request: request, kind: kind, emitter: em, continuation: c)
+                pending[id] = Pending(request: request, kind: kind, mandatory: mandatory, emitter: em, continuation: c)
                 order.append(id)
             }
         } onCancel: {
@@ -76,7 +80,7 @@ public actor ApprovalGate {
     public func decide(id: String, decision: ApprovalDecision) -> Bool {
         guard let p = pending.removeValue(forKey: id) else { return false }
         order.removeAll { $0 == id }
-        if decision == .approveAlways { alwaysAllowedKinds.insert(p.kind) }
+        if decision == .approveAlways, !p.mandatory { alwaysAllowedKinds.insert(p.kind) }
         p.emitter?.emit(.approvalResolved(id: id, decision: decision))
         p.continuation.resume(returning: decision)
         return true

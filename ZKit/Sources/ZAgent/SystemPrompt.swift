@@ -14,14 +14,16 @@ public struct SystemPromptBuilder: Sendable {
     /// True when tools are called through fenced JSON blocks instead of native tool calling.
     public var textToolMode: Bool
     public var vision: Bool
+    /// True when the provider's native computer tool is declared (it defines its own coordinate space).
+    public var nativeComputer: Bool
     public var date: Date
 
     public init(agentName: String, instructions: String? = nil, surfaceInfo: SurfaceInfo? = nil, screenSize: PixelSize? = nil,
                 memoryContext: String? = nil, tools: [ToolSpec] = [], textToolMode: Bool = false, vision: Bool = true,
-                date: Date = Date()) {
+                nativeComputer: Bool = false, date: Date = Date()) {
         self.agentName = agentName; self.instructions = instructions; self.surfaceInfo = surfaceInfo
         self.screenSize = screenSize; self.memoryContext = memoryContext; self.tools = tools
-        self.textToolMode = textToolMode; self.vision = vision; self.date = date
+        self.textToolMode = textToolMode; self.vision = vision; self.nativeComputer = nativeComputer; self.date = date
     }
 
     public func build() -> String {
@@ -36,8 +38,12 @@ public struct SystemPromptBuilder: Sendable {
             s += "- Shell: " + (info.shellAvailable ? "available through the `shell` tool" : "not available (use the screen)") + "\n"
             s += "- Desktop: " + (info.hasDesktop ? "graphical desktop running" : "no graphical desktop detected") + "\n"
             if let size = screenSize, names.contains(ComputerTool.toolName) {
-                s += "- Screen: \(size.width)x\(size.height) pixels in screenshot coordinates (origin top-left). "
-                s += "x/y you pass to `computer` are in this space.\n"
+                if nativeComputer {
+                    s += "- Screen: screenshots are \(size.width)x\(size.height) pixels.\n"
+                } else {
+                    s += "- Screen: \(size.width)x\(size.height) pixels in screenshot coordinates (origin top-left). "
+                    s += "x/y you pass to `computer` are in this space.\n"
+                }
             }
             if !info.notes.isEmpty { s += "- Notes: \(info.notes)\n" }
         }

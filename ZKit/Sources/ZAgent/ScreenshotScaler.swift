@@ -8,6 +8,15 @@ public struct ScreenPoint: Hashable, Sendable, Codable {
     public init(x: Int, y: Int) { self.x = x; self.y = y }
 }
 
+/// A rectangle in some pixel space.
+public struct ScreenRect: Hashable, Sendable, Codable {
+    public var x: Int
+    public var y: Int
+    public var width: Int
+    public var height: Int
+    public init(x: Int, y: Int, width: Int, height: Int) { self.x = x; self.y = y; self.width = width; self.height = height }
+}
+
 /// Maps between the model's screenshot space and the surface's own pixel space.
 public struct CoordinateMapping: Hashable, Sendable, Codable {
     /// The surface's coordinate space (`ComputerSurface.displaySize`).
@@ -51,13 +60,22 @@ public struct CoordinateMapping: Hashable, Sendable, Codable {
     }
 }
 
-/// Resizes images. The app implements this with CoreGraphics / ImageIO; on Linux and in tests the
-/// pass-through default leaves images untouched (and coordinates are then not rescaled).
+/// Resizes (and optionally crops) images. The app implements this with CoreGraphics / ImageIO; on Linux and in
+/// tests the pass-through default leaves images untouched (and coordinates are then not rescaled).
 public protocol ImageResizer: Sendable {
     /// False for resizers that cannot change pixel dimensions; the scaler then keeps a 1:1 mapping.
     var canResize: Bool { get }
     /// Returns the image scaled to `size` (width/height should be set on the result).
     func resize(_ image: ImageData, to size: PixelSize) async throws -> ImageData
+    /// True when `crop` works (enables the computer tool's `zoom`). Default false.
+    var canCrop: Bool { get }
+    /// Returns the `rect` part of the image (in the image's own pixels). Default: throws `ZError.unsupported`.
+    func crop(_ image: ImageData, to rect: ScreenRect) async throws -> ImageData
+}
+
+public extension ImageResizer {
+    var canCrop: Bool { false }
+    func crop(_ image: ImageData, to rect: ScreenRect) async throws -> ImageData { throw ZError.unsupported("image cropping") }
 }
 
 /// Leaves images as they are.
@@ -92,6 +110,13 @@ public struct ScreenshotScaler: Hashable, Sendable, Codable {
         let w = longIsWidth ? maxLongEdge : max(1, Int((Double(size.width) * f).rounded()))
         let h = longIsWidth ? max(1, Int((Double(size.height) * f).rounded())) : maxLongEdge
         return PixelSize(width: w, height: h)
+    }
+
+    /// The largest size with `size`'s aspect ratio that fits in `bounds`.
+    public static func fit(_ size: PixelSize, into bounds: PixelSize) -> PixelSize {
+        guard size.width > 0, size.height > 0, bounds.width > 0, bounds.height > 0 else { return bounds }
+        let f = min(Double(bounds.width) / Double(size.width), Double(bounds.height) / Double(size.height))
+        return PixelSize(width: max(1, Int((Double(size.width) * f).rounded())), height: max(1, Int((Double(size.height) * f).rounded())))
     }
 
     /// The mapping the model will be working in. Pass `resizing: false` when no real resizer is available.
