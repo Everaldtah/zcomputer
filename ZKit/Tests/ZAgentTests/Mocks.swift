@@ -16,6 +16,34 @@ func fakePNG(width: Int, height: Int) -> Data {
     return Data(bytes)
 }
 
+/// A resizer that "resizes" / "crops" by producing fake PNG headers of the requested size, and records crops.
+final class FakeResizer: ImageResizer, @unchecked Sendable {
+    private let lock = NSLock()
+    private var cropRects: [ScreenRect] = []
+    let canCrop: Bool
+
+    init(canCrop: Bool = true) { self.canCrop = canCrop }
+
+    var canResize: Bool { true }
+    var crops: [ScreenRect] {
+        lock.lock(); defer { lock.unlock() }
+        return cropRects
+    }
+
+    func resize(_ image: ImageData, to size: PixelSize) async throws -> ImageData {
+        ImageData(mime: "image/png", data: fakePNG(width: size.width, height: size.height))
+    }
+
+    func crop(_ image: ImageData, to rect: ScreenRect) async throws -> ImageData {
+        record(rect)
+        return ImageData(mime: "image/png", data: fakePNG(width: rect.width, height: rect.height))
+    }
+
+    private func record(_ rect: ScreenRect) {
+        lock.lock(); cropRects.append(rect); lock.unlock()
+    }
+}
+
 /// Records every call; screenshots are fake PNG blobs of the display size.
 actor MockSurface: ComputerSurface {
     enum Call: Equatable, Sendable {
@@ -28,6 +56,8 @@ actor MockSurface: ComputerSurface {
         case scroll(Int, Int, Int, Int)
         case type(String)
         case keys(String)
+        case keyDown(String)
+        case keyUp(String)
         case shell(String)
         case readFile(String)
         case writeFile(String, Data)
@@ -37,17 +67,29 @@ actor MockSurface: ComputerSurface {
     private var files: [String: Data] = [:]
     private let size: PixelSize
     private let shellAvailable: Bool
+    private let heldKeys: Bool
+    private let osFamily: String
     private let shellHandler: @Sendable (String) -> ShellResult
+    /// Makes the next input action of this kind fail (e.g. "click").
+    private var failing: Set<String> = []
 
-    init(size: PixelSize = PixelSize(width: 1024, height: 768), shellAvailable: Bool = true,
+    init(size: PixelSize = PixelSize(width: 1024, height: 768), shellAvailable: Bool = true, heldKeys: Bool = true,
+         osFamily: String = "linux",
          shellHandler: @escaping @Sendable (String) -> ShellResult = { ShellResult(stdout: "ran: \($0)") }) {
         self.size = size
         self.shellAvailable = shellAvailable
+        self.heldKeys = heldKeys
+        self.osFamily = osFamily
         self.shellHandler = shellHandler
     }
 
+    func failNext(_ what: String) { failing.insert(what) }
+    private func maybeFail(_ what: String) throws {
+        if failing.remove(what) != nil { throw ZError.guest("\(what) failed") }
+    }
+
     var info: SurfaceInfo {
-        SurfaceInfo(name: "Mock VM", osFamily: "linux", architecture: "arm64", shellAvailable: shellAvailable, hasDesktop: true)
+        SurfaceInfo(name: "Mock VM", osFamily: osFamily, architecture: "arm64", shellAvailable: shellAvailable, hasDesktop: true)
     }
     var displaySize: PixelSize { size }
 
@@ -61,13 +103,26 @@ actor MockSurface: ComputerSurface {
         return ImageData(mime: "image/png", data: fakePNG(width: size.width, height: size.height))
     }
     func mouseMove(x: Int, y: Int) async throws { calls.append(.mouseMove(x, y)) }
-    func click(x: Int, y: Int, button: MouseButton, count: Int) async throws { calls.append(.click(x, y, button, count)) }
+    func click(x: Int, y: Int, button: MouseButton, count: Int) async throws {
+        try maybeFail("click")
+        calls.append(.click(x, y, button, count))
+    }
     func mouseDown(x: Int, y: Int, button: MouseButton) async throws { calls.append(.mouseDown(x, y, button)) }
     func mouseUp(x: Int, y: Int, button: MouseButton) async throws { calls.append(.mouseUp(x, y, button)) }
     func drag(fromX: Int, fromY: Int, toX: Int, toY: Int) async throws { calls.append(.drag(fromX, fromY, toX, toY)) }
     func scroll(x: Int, y: Int, dx: Int, dy: Int) async throws { calls.append(.scroll(x, y, dx, dy)) }
     func typeText(_ text: String) async throws { calls.append(.type(text)) }
     func pressKeys(_ combo: String) async throws { calls.append(.keys(combo)) }
+
+    func keyDown(_ key: String) async throws {
+        guard heldKeys else { throw ZError.unsupported("keyDown") }
+        calls.append(.keyDown(key))
+    }
+
+    func keyUp(_ key: String) async throws {
+        guard heldKeys else { throw ZError.unsupported("keyUp") }
+        calls.append(.keyUp(key))
+    }
 
     func shell(_ command: String, timeout: TimeInterval) async throws -> ShellResult {
         calls.append(.shell(command))

@@ -327,7 +327,7 @@ public struct ComputerTool: Tool {
         let fx = Double(raw.width ?? surfaceSize.width) / Double(max(1, surfaceSize.width))
         let fy = Double(raw.height ?? surfaceSize.height) / Double(max(1, surfaceSize.height))
         let rect = ScreenRect(x: Int(Double(a.x) * fx), y: Int(Double(a.y) * fy),
-                              width: max(1, Int(Double(b.x - a.x + 1) * fx)), height: max(1, Int(Double(b.y - a.y + 1) * fy)))
+                              width: max(1, Int(Double(b.x - a.x) * fx)), height: max(1, Int(Double(b.y - a.y) * fy)))
         let cropped = try await resizer.crop(raw, to: rect).withDetectedSize()
         let target = ScreenshotScaler.fit(PixelSize(width: rect.width, height: rect.height),
                                           into: scaler.scaledSize(for: surfaceSize))
