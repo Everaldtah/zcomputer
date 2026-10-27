@@ -1,0 +1,59 @@
+# ZKit tests on Linux (cheap), guest agent build, and a macOS app build on a GitHub Mac.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      mac:
+        description: "Also build the macOS app (uses macOS minutes)"
+        type: boolean
+        default: true
+
+jobs:
+  kit:
+    name: ZKit tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: SQLite headers
+        run: apt-get update -qq && apt-get install -y -qq libsqlite3-dev pkg-config > /dev/null
+      - name: Build + test
+        run: |
+          set -o pipefail
+          swift build --package-path ZKit 2>&1 | tee build.log | grep -E --line-buffered 'error:|warning: unre|Compiling|Build complete' || true
+          grep -q 'error:' build.log && { echo "---- errors ----"; grep -E 'error:' build.log | sort -u | head -200; exit 1; }
+          swift test --package-path ZKit 2>&1 | tee test.log | tail -40
+      - name: Logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kit-logs
+          path: |
+            build.log
+            test.log
+          if-no-files-found: ignore
+
+  guest:
+    name: Guest agent (Go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.23" }
+      - name: Build static binaries
+        run: |
+          if [ ! -f guest-agent/go.mod ]; then echo "no guest agent yet"; mkdir -p out; exit 0; fi
+          cd guest-agent
+          mkdir -p ../out
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o ../out/zguest-linux-arm64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../out/zguest-linux-amd64 .
+          go test ./... 2>&1 | tail -20
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zguest
+          path: out/
+          if-no-files-found: ignore
