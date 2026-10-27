@@ -1,0 +1,16 @@
+# Included by project.yml only when ZC_MLX is truthy (`ZC_MLX=YES xcodegen generate`), next to
+# ZComputer/Config/mlx.yml, which declares the packages (one project, one version of each): mlx-swift 0.32.3,
+# mlx-swift-lm 3.32.3, swift-transformers 1.3.5, swift-huggingface 1.0.0. They need Xcode 26.4+ (Swift 6.3).
+# MLX runs on the Apple GPU of a real device (arm64); the simulator is not a target for MLX models.
+targets:
+  ZComputeriOS:
+    dependencies:
+      - package: mlx-swift
+        product: MLX
+      - package: mlx-swift-lm
+        products: [MLXLLM, MLXVLM, MLXLMCommon]
+      - package: swift-transformers
+        product: Tokenizers
+    settings:
+      base:
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) ZC_MLX"

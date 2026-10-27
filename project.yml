@@ -9,11 +9,16 @@ include:
   - path: ZComputer/Config/mlx.yml
     relativePaths: false
     enable: ${ZC_MLX}
+  # The same MLX packages (declared once, in mlx.yml) for the iPhone/iPad app.
+  - path: ZComputeriOS/Config/mlx-ios.yml
+    relativePaths: false
+    enable: ${ZC_MLX}
 
 options:
   bundleIdPrefix: com.everaldtah
   deploymentTarget:
     macOS: "15.0"
+    iOS: "17.0"
   developmentLanguage: en
   createIntermediateGroups: true
   groupSortPosition: top
@@ -46,6 +51,14 @@ schemes:
     build:
       targets:
         ZComputer: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  ZComputeriOS:
+    build:
+      targets:
+        ZComputeriOS: all
     run:
       config: Debug
     archive:
@@ -109,3 +122,87 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_EMIT_LOC_STRINGS: NO
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+
+  # Z Computer for iPhone and iPad: same bundle id as the Mac app (universal App ID, one App Store Connect record,
+  # universal purchase). ZKit is shared as-is; the machine is x86 Linux emulated in WebKit (ZEmu). ZVM is macOS-only
+  # and is not linked here. See docs/IOS.md.
+  ZComputeriOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ZComputeriOS
+        excludes:
+          - "**/.DS_Store"
+          - "Config/**"
+      # Platform-neutral app code shared with the Mac target (no AppKit, no ZVM). Keep these files portable.
+      - path: ZComputer/Agent/ActivityItem.swift
+      - path: ZComputer/Agent/AgentSession.swift
+      - path: ZComputer/Agent/DemoScreenRenderer.swift
+      - path: ZComputer/Agent/MockComputerSurface.swift
+      - path: ZComputer/App/AppSettings.swift
+      - path: ZComputer/Library/LibraryModel.swift
+      - path: ZComputer/Local/LocalModelsModel.swift
+      - path: ZComputer/Local/MLXClient.swift
+      - path: ZComputer/Local/MLXTokenizerBridge.swift
+      - path: ZComputer/Local/ModelDownloader.swift
+      - path: ZComputer/Platform/CoreGraphicsImageResizer.swift
+      - path: ZComputer/Platform/DocumentTextExtractor.swift
+      - path: ZComputer/Platform/FileCustomProviderStore.swift
+      - path: ZComputer/Platform/KeychainKeyStore.swift
+      - path: ZComputer/Team/TeamModel.swift
+    dependencies:
+      - package: ZKit
+        products: [ZCore, ZProviders, ZAgent, ZMemory, ZTeam, ZLocal]
+      - package: SwiftTerm
+        product: SwiftTerm
+    entitlements:
+      # Committed as-is; no `properties` so XcodeGen never rewrites it.
+      path: ZComputeriOS/ZComputeriOS.entitlements
+    info:
+      path: ZComputeriOS/Info.plist
+      properties:
+        CFBundleDisplayName: Z Computer
+        CFBundleName: Z Computer
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        # One scene: the emulator's WebKit view can only live in one window.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Files app: drop ISOs into Z Computer's folder; imports open documents in place.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSLocalNetworkUsageDescription: Z Computer connects to AI model servers you add (Ollama, LM Studio, llama.cpp, Jan, vLLM), for example on your Mac at home, so agents can use your own models.
+        # Model servers people run themselves (Ollama on a Mac over Tailscale, LM Studio on the LAN) speak plain HTTP.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.everaldtah.zcomputer
+        PRODUCT_NAME: "Z Computer"
+        PRODUCT_MODULE_NAME: ZComputeriOS
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # The Mac App Store already has the native Mac app under this bundle id.
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+        SWIFT_EMIT_LOC_STRINGS: NO
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"

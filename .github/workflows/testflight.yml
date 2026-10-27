@@ -1,11 +1,17 @@
-# Archive Z Computer (macOS), sign it automatically with the App Store Connect API key and upload it to TestFlight.
-# Secrets: ASC_KEY_P8 (contents of AuthKey_XXXX.p8), ASC_KEY_ID, ASC_ISSUER_ID. Team BXQW8UBNM2,
-# bundle id com.everaldtah.zcomputer (App Store Connect app 6827705945). Mirrors Synapse's working iOS pipeline.
+# Archive Z Computer (macOS and/or iPhone/iPad), sign it automatically with the App Store Connect API key and upload
+# it to TestFlight. Secrets: ASC_KEY_P8 (contents of AuthKey_XXXX.p8), ASC_KEY_ID, ASC_ISSUER_ID. Team BXQW8UBNM2,
+# bundle id com.everaldtah.zcomputer (App Store Connect app 6827705945; the App ID is universal, so the iOS build
+# lands in the same record: universal purchase). Mirrors Synapse's working iOS pipeline.
 name: TestFlight
 
 on:
   workflow_dispatch:
     inputs:
+      platform:
+        description: "Which app to archive and upload"
+        type: choice
+        options: [both, mac, ios]
+        default: both
       upload:
         description: "Upload to App Store Connect / TestFlight (false: archive only)"
         type: boolean
@@ -21,6 +27,7 @@ concurrency: testflight
 
 jobs:
   testflight:
+    if: github.event_name == 'push' || inputs.platform != 'ios'
     runs-on: macos-26
     timeout-minutes: 120
     env:
@@ -116,6 +123,98 @@ jobs:
           path: |
             ${{ runner.temp }}/archive.log
             ${{ runner.temp }}/export.log
+          if-no-files-found: ignore
+
+      - name: Key off the machine
+        if: always()
+        run: rm -f "$KEY_PATH"
+
+  # Z Computer for iPhone/iPad: scheme ZComputeriOS, same bundle id and signing as the Mac job, archived for
+  # generic/platform=iOS and exported with method app-store-connect (Synapse's iOS testflight.yml).
+  ios:
+    if: github.event_name == 'push' || inputs.platform != 'mac'
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      TEAM_ID: BXQW8UBNM2
+      KEY_PATH: ${{ github.workspace }}/../asc-ios/AuthKey.p8
+      ZC_MLX: ${{ (github.event_name == 'workflow_dispatch' && inputs.mlx) && 'YES' || 'NO' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 26 (uploads must be built with Xcode 26+ and the iOS 26 SDK)
+        run: |
+          X=/Applications/Xcode_26.6.app
+          [ -d "$X" ] || X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -q iphoneos || xcodebuild -downloadPlatform iOS
+
+      - name: Metal toolchain (the exit code lies; parse Status)
+        run: |
+          status() { xcodebuild -showComponent MetalToolchain 2>&1 | awk -F': *' '/^Status:/ { print tolower($2); exit }'; }
+          [ "$(status)" = "installed" ] || xcodebuild -downloadComponent MetalToolchain
+          [ "$(status)" = "installed" ] || { echo "::error::MetalToolchain still '$(status)'"; exit 1; }
+
+      - name: Hide Homebrew's sqlite3.pc
+        run: find /opt/homebrew /usr/local -name 'sqlite3.pc' -print -delete 2>/dev/null || true
+
+      - name: Generate the Xcode project
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen generate
+
+      - name: App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$(dirname "$KEY_PATH")"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+
+      - name: Archive (Release, signed automatically)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ZComputer.xcodeproj -scheme ZComputeriOS -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/ZComputeriOS.xcarchive" \
+            -allowProvisioningUpdates -skipPackagePluginValidation -skipMacroValidation \
+            -authenticationKeyPath "$KEY_PATH" -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            2>&1 | tee "$RUNNER_TEMP/archive-ios.log" | grep -E --line-buffered 'error:|warning: .*(sign|provision|entitlement)|\*\* ARCHIVE|Signing Identity|Provisioning Profile' || true
+          test -d "$RUNNER_TEMP/ZComputeriOS.xcarchive" || { tail -80 "$RUNNER_TEMP/archive-ios.log"; exit 1; }
+
+      - name: Upload to App Store Connect (TestFlight)
+        if: ${{ github.event_name == 'push' || inputs.upload }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><true/>
+            <key>uploadSymbols</key><true/>
+            <key>testFlightInternalTestingOnly</key><false/>
+          </dict></plist>
+          PLIST
+          set -o pipefail
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/ZComputeriOS.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export-ios" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            2>&1 | tee "$RUNNER_TEMP/export-ios.log" | tail -40
+
+      - name: Logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-logs-ios
+          path: |
+            ${{ runner.temp }}/archive-ios.log
+            ${{ runner.temp }}/export-ios.log
           if-no-files-found: ignore
 
       - name: Key off the machine

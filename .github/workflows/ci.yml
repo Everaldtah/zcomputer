@@ -11,6 +11,10 @@ on:
         description: "Also build the macOS app (uses macOS minutes)"
         type: boolean
         default: true
+      ios:
+        description: "Also build the iPhone/iPad app (uses macOS minutes)"
+        type: boolean
+        default: true
 
 jobs:
   kit:
@@ -156,5 +160,74 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-build-log-mlx-${{ matrix.mlx }}
+          path: build.log
+          if-no-files-found: ignore
+
+  # Z Computer for iPhone/iPad (scheme ZComputeriOS), unsigned device build. Same triggers as the Mac app.
+  # MLX NO is the required leg; MLX YES (on-device models, Xcode >= 26.4) is informational.
+  ios:
+    name: App (iOS, MLX ${{ matrix.mlx }})
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.ios)
+    runs-on: macos-26
+    timeout-minutes: 90
+    continue-on-error: ${{ matrix.mlx == 'YES' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mlx: ["NO", "YES"]
+    env:
+      ZC_MLX: ${{ matrix.mlx }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26.6
+        run: |
+          X=/Applications/Xcode_26.6.app
+          [ -d "$X" ] || X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          echo "Using $X"
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos || true
+      - name: Metal toolchain (the exit code lies; parse Status)
+        run: |
+          status() { xcodebuild -showComponent MetalToolchain 2>&1 | awk -F': *' '/^Status:/ { print tolower($2); exit }'; }
+          echo "MetalToolchain: $(status)"
+          [ "$(status)" = "installed" ] || xcodebuild -downloadComponent MetalToolchain
+          [ "$(status)" = "installed" ] || { echo "::error::MetalToolchain still '$(status)'"; exit 1; }
+      - name: iOS platform (download when the image lacks it)
+        run: |
+          xcodebuild -showsdks | grep -q iphoneos || xcodebuild -downloadPlatform iOS
+      - name: Hide Homebrew's sqlite3.pc
+        run: find /opt/homebrew /usr/local -name 'sqlite3.pc' -print -delete 2>/dev/null || true
+      - name: Generate the Xcode project
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen --version
+          xcodegen generate
+          echo "MLX package references: $(grep -c 'mlx-swift' ZComputer.xcodeproj/project.pbxproj || true)"
+      - name: Cache SwiftPM checkouts
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/spm
+          key: spm-ios-${{ matrix.mlx }}-${{ hashFiles('project.yml', 'ZComputer/Config/mlx.yml', 'ZComputeriOS/Config/mlx-ios.yml') }}
+          restore-keys: spm-ios-${{ matrix.mlx }}-
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build -project ZComputer.xcodeproj -scheme ZComputeriOS -configuration Debug \
+            -destination 'generic/platform=iOS' -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO 2>&1 | tee build.log \
+            | grep -E --line-buffered '(error:|warning: unre|\*\* BUILD)' || true
+          grep -q '\*\* BUILD SUCCEEDED \*\*' build.log || { echo "---- errors ----"; grep -E 'error:' build.log | sort -u | head -200; exit 1; }
+          echo "---- app warnings ----"
+          grep -E '/ZComputer(iOS)?/[^:]+\.swift:[0-9]+:[0-9]+: warning:' build.log | sort -u | head -80 || true
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -maxdepth 6 -path '*Debug-iphoneos/Z Computer.app' | head -1)
+          echo "App: $APP"
+          [ -n "$APP" ] && /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" || true
+      - name: Build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-log-mlx-${{ matrix.mlx }}
           path: build.log
           if-no-files-found: ignore

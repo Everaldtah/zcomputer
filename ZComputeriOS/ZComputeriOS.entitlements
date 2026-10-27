@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- In-app MLX models (GBs of weights) and the emulated machine's RAM: lets the app use more of the device's
+	     memory before jetsam. Capability "Increased Memory Limit" on the App ID (automatic signing adds it). -->
+	<key>com.apple.developer.kernel.increased-memory-limit</key>
+	<true/>
+	<!-- API keys and base-URL overrides (KeychainKeyStore): the app's default access group only. -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.everaldtah.zcomputer</string>
+	</array>
+</dict>
+</plist>
