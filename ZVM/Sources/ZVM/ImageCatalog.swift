@@ -71,10 +71,10 @@ public enum ImageCatalog {
             name: "Ubuntu 24.04 LTS (\(arch.debianName))",
             distribution: "ubuntu", version: "24.04", architecture: arch, format: .qcow2,
             url: url(base + file), checksumsURL: url(base + "SHA256SUMS"), checksumAlgorithm: .sha256,
-            downloadBytes: arch == .arm64 ? 616_522_752 : 620_000_000, imageDiskBytes: 3_758_096_384, defaultUser: "z",
+            downloadBytes: arch == .arm64 ? 616_522_752 : 621_284_352, imageDiskBytes: 3_758_096_384, defaultUser: "z",
             notes: "Server cloud image; the .img is compressed qcow2 and is converted to RAW after download. "
-                + "URL verified 2026-10-27 (arm64 size measured; amd64 size approximate); the qcow2 header fields and "
-                + "the boot under Virtualization.framework are UNVERIFIED.")
+                + "URL and size verified 2026-10-27; header (v3, 64 KiB clusters, zlib) and raw-deflate cluster layout "
+                + "checked against the real arm64 file; boot under Virtualization.framework UNVERIFIED.")
     }
 
     private static func url(_ s: String) -> URL {
