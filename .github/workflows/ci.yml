@@ -59,3 +59,21 @@ jobs:
           name: zguest
           path: out/
           if-no-files-found: ignore
+
+  zvm:
+    name: ZVM (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select the newest Xcode
+        run: |
+          ls -d /Applications/Xcode_*.app
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -E '/Xcode_[0-9]+(\.[0-9]+)*\.app$' | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+          swift --version
+      - name: Build
+        run: swift build --package-path ZVM
+      - name: Test
+        run: swift test --package-path ZVM
