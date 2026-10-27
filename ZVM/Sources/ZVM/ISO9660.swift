@@ -406,7 +406,7 @@ public final class ISO9660Reader {
     }
 
     public convenience init(url: URL) throws {
-        try self.init(source: try FileSource(url: url))
+        try self.init(source: FileSource(url: url))
     }
 
     public var hasJoliet: Bool { jolietRoot != nil }
