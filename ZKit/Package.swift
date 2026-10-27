@@ -3,6 +3,16 @@
 // (swift:6.x container in CI) as well as macOS; Apple-only code goes behind `#if canImport(...)`.
 import PackageDescription
 
+// SQLite comes from the SDK on Apple platforms (link "sqlite3" in the module map). pkg-config / Homebrew
+// are only consulted on Linux: with `.brew` on macOS, SwiftPM links Homebrew's libsqlite3.dylib, which
+// breaks the x86_64 link in CI and would not exist on users' Macs.
+#if os(Linux)
+let csqlite: Target = .systemLibrary(name: "CSQLite", path: "Sources/CSQLite", pkgConfig: "sqlite3",
+                                     providers: [.apt(["libsqlite3-dev"])])
+#else
+let csqlite: Target = .systemLibrary(name: "CSQLite", path: "Sources/CSQLite")
+#endif
+
 let package = Package(
     name: "ZKit",
     platforms: [.macOS(.v15)],
@@ -18,8 +28,7 @@ let package = Package(
         .target(name: "ZCore"),
         .target(name: "ZProviders", dependencies: ["ZCore"], resources: [.copy("Resources/providers.json")]),
         .target(name: "ZAgent", dependencies: ["ZCore", "ZProviders", "ZMemory"]),
-        .systemLibrary(name: "CSQLite", path: "Sources/CSQLite", pkgConfig: "sqlite3",
-                       providers: [.apt(["libsqlite3-dev"]), .brew(["sqlite3"])]),
+        csqlite,
         .target(name: "ZMemory", dependencies: ["ZCore", "CSQLite"]),
         .target(name: "ZTeam", dependencies: ["ZCore", "ZAgent", "ZMemory", "ZProviders"]),
         .target(name: "ZLocal", dependencies: ["ZCore", "ZProviders"]),
