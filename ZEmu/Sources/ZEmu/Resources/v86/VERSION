@@ -1,0 +1,19 @@
+v86 vendored build (https://github.com/copy/v86, BSD-2-Clause, see LICENSE)
+
+release:  GitHub release tag "latest" ("Latest Release"), published 2026-10-18T17:15:19Z
+commit:   cc37f35c43bf14865d74ad76879ecf9410f69eb1 (2026-10-18 "Enable SMBIOS tables (#1642)")
+fetched:  2026-10-27
+
+file                 bytes     sha256
+libv86.js            359839    1b41074f7a5604f528dac6842baf7afccd79d7370b97ea3241944c275b67bec1   (release asset)
+v86.wasm             2007347   2f0c4150f266415b754a84a32e6f8e4c975a1d3abb94c78b047fa30027db1ef1   (release asset)
+v86-fallback.wasm    2040034   4eb64c9b7908d5931c1868eea4824b3a0a628eb86e6eac09d133776b50922d81   (release asset)
+seabios.bin          131072    73e3f359102e3a9982c35fce98eb7cd08f18303ac7f1ba6ebfbe6cdc1c244d98   (bios/ at the commit; git blob 8c9ab8ff)
+vgabios.bin          36352     a4bc0d80cc3ca028c73dafa8fee396b8d054ce87ebd8abfbd31b06b437607880   (bios/ at the commit; git blob bd393e2b)
+LICENSE              v86 BSD-2-Clause licence (repository root at the commit)
+BIOS-COPYING.LESSER  LGPL-3.0 text that covers seabios.bin and vgabios.bin (bios/COPYING.LESSER at the commit)
+
+The release asset digests match the sha256 digests GitHub reports for the release assets.
+Saved states are tied to the emulator build: a state file must be produced by this exact v86 build
+(libv86.js / v86.wasm above) with the same machine options (memory, VGA memory, devices).
+To update: download the new release assets + bios files, update this file, and re-run the ZEmu tests.
