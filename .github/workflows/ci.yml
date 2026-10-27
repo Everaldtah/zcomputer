@@ -117,6 +117,11 @@ jobs:
           echo "MetalToolchain: $(status)"
           [ "$(status)" = "installed" ] || xcodebuild -downloadComponent MetalToolchain
           [ "$(status)" = "installed" ] || { echo "::error::MetalToolchain still '$(status)'"; exit 1; }
+      - name: Hide Homebrew's sqlite3.pc
+        # ZKit's CSQLite declares pkgConfig "sqlite3" with a brew provider. With Homebrew's (keg-only, arm64-only)
+        # sqlite on the runner, SwiftPM would link /opt/homebrew/opt/sqlite/lib/libsqlite3.dylib, which breaks the
+        # x86_64 slice and would not exist on users' Macs. Without the .pc file the module map links the SDK's libsqlite3.
+        run: find /opt/homebrew /usr/local -name 'sqlite3.pc' -print -delete 2>/dev/null || true
       - name: Generate the Xcode project
         run: |
           which xcodegen || brew install xcodegen
@@ -130,11 +135,8 @@ jobs:
           key: spm-${{ matrix.mlx }}-${{ hashFiles('project.yml', 'ZComputer/Config/mlx.yml') }}
           restore-keys: spm-${{ matrix.mlx }}-
       - name: Build
-        # Homebrew stays off PATH: ZKit's CSQLite declares pkgConfig "sqlite3" with a brew provider, and SwiftPM would
-        # otherwise link /opt/homebrew/opt/sqlite (arm64-only, absent on users' Macs) instead of the SDK's libsqlite3.
         run: |
           set -o pipefail
-          export PATH=/usr/bin:/bin:/usr/sbin:/sbin
           xcodebuild build -project ZComputer.xcodeproj -scheme ZComputer -configuration Debug \
             -destination 'generic/platform=macOS' -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
             -skipPackagePluginValidation -skipMacroValidation \
