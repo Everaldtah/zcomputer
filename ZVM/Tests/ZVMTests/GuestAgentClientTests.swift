@@ -32,40 +32,48 @@ final class FakeAgentConnection: GuestAgentConnection, @unchecked Sendable {
     }
 
     func write(_ data: Data) async throws {
-        var lines: [Data] = []
-        lock.lock()
-        if closed { lock.unlock(); throw GuestAgentError(code: .transport, message: "closed") }
-        inbound.append(data)
-        while let nl = inbound.firstIndex(of: 0x0A) {
-            lines.append(Data(inbound[inbound.startIndex..<nl]))
-            inbound = Data(inbound[(nl + 1)...])
-        }
-        lock.unlock()
+        let lines = try appendInbound(data)
         for line in lines {
             let request = (try? JSONValue.parse(line)) ?? .null
-            let answers = responder(request)
-            lock.lock()
-            received.append(request)
-            for answer in answers { outbound.append(Data((answer + "\n").utf8)) }
-            lock.unlock()
+            record(request, answers: responder(request))
         }
     }
 
     func read(maxLength: Int) async throws -> Data {
         while true {
-            lock.lock()
-            if !outbound.isEmpty {
-                let n = min(maxLength, chunkSize, outbound.count)
-                let chunk = Data(outbound.prefix(n))
-                outbound = Data(outbound.dropFirst(n))
-                lock.unlock()
-                return chunk
-            }
-            let isClosed = closed
-            lock.unlock()
+            let (chunk, isClosed) = takeChunk(maxLength)
+            if let chunk { return chunk }
             if isClosed { return Data() }
             try await Task.sleep(nanoseconds: 1_000_000)
         }
+    }
+
+    // NSLock may not be used directly in async functions (Swift 6.2), so locking lives in these sync helpers.
+    private func appendInbound(_ data: Data) throws -> [Data] {
+        lock.lock(); defer { lock.unlock() }
+        if closed { throw GuestAgentError(code: .transport, message: "closed") }
+        inbound.append(data)
+        var lines: [Data] = []
+        while let nl = inbound.firstIndex(of: 0x0A) {
+            lines.append(Data(inbound[inbound.startIndex..<nl]))
+            inbound = Data(inbound[(nl + 1)...])
+        }
+        return lines
+    }
+
+    private func record(_ request: JSONValue, answers: [String]) {
+        lock.lock(); defer { lock.unlock() }
+        received.append(request)
+        for answer in answers { outbound.append(Data((answer + "\n").utf8)) }
+    }
+
+    private func takeChunk(_ maxLength: Int) -> (Data?, Bool) {
+        lock.lock(); defer { lock.unlock() }
+        guard !outbound.isEmpty else { return (nil, closed) }
+        let n = min(maxLength, chunkSize, outbound.count)
+        let chunk = Data(outbound.prefix(n))
+        outbound = Data(outbound.dropFirst(n))
+        return (chunk, closed)
     }
 
     func close() {
@@ -87,11 +95,14 @@ final class ConnectionFactory: @unchecked Sendable {
     }
 
     var connector: GuestAgentConnector {
-        { [self] in
-            let c = FakeAgentConnection(responder: responder)
-            lock.lock(); made.append(c); lock.unlock()
-            return c
-        }
+        { [self] in makeConnection() }
+    }
+
+    private func makeConnection() -> FakeAgentConnection {
+        let c = FakeAgentConnection(responder: responder)
+        lock.lock(); defer { lock.unlock() }
+        made.append(c)
+        return c
     }
 }
 
