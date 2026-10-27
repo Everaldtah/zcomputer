@@ -28,10 +28,10 @@ final class LocalServerDiscoveryTests: XCTestCase {
         ]}
         """)
         mock.on("http://127.0.0.1:11434/api/version", json: #"{"version":"0.12.6"}"#)
-        mock.on("POST", "http://127.0.0.1:11434/api/show", body: #"{"model":"qwen3:4b"}"#, json: """
+        mock.on("http://127.0.0.1:11434/api/show", method: "POST", body: #"{"model":"qwen3:4b"}"#, json: """
         {"capabilities":["completion","tools","thinking"],"model_info":{"general.architecture":"qwen3","qwen3.context_length":40960}}
         """)
-        mock.on("POST", "http://127.0.0.1:11434/api/show", body: #"{"model":"qwen3-vl:4b"}"#, json: """
+        mock.on("http://127.0.0.1:11434/api/show", method: "POST", body: #"{"model":"qwen3-vl:4b"}"#, json: """
         {"capabilities":["completion","vision","tools"],"model_info":{"qwen3vl.context_length":262144}}
         """)
 

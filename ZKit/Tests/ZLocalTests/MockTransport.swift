@@ -17,7 +17,7 @@ final class MockTransport: LocalTransport, @unchecked Sendable {
     private var recorded: [LocalHTTPRequest] = []
 
     /// Registers a JSON (or raw text) answer. `body` narrows a POST route to one exact request body.
-    func on(_ method: String = "GET", _ url: String, body: String? = nil, status: Int = 200, json: String,
+    func on(_ url: String, method: String = "GET", body: String? = nil, status: Int = 200, json: String,
             delay: TimeInterval = 0) {
         lock.lock()
         defer { lock.unlock() }
