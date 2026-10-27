@@ -20,7 +20,7 @@ final class TeamToolTests: XCTestCase {
     private func fixture() -> Fixture {
         let spec = TeamSpec(members: [teamMember("ada", .lead), teamMember("bob", .worker), teamMember("cy", .reviewer)], goal: "g")
         let roster = spec.roster
-        let board = TaskBoard()
+        let board = TaskBoard(reporter: TeamReporter(roster: roster))
         let messages = MessageBus(roster: roster)
         var duties: [String: TeamDuties] = [:]
         for m in spec.members { duties[m.id] = spec.duties(of: m.id) }
