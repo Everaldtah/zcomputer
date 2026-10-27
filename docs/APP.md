@@ -29,6 +29,12 @@ xcodebuild build -project ZComputer.xcodeproj -scheme ZComputer -destination 'ge
   `ZComputer/Resources/zguest/` (a folder reference, so they land in `Contents/Resources/zguest`, non-executable on the
   host). `AppPaths.guestAgentDirectory` hands that folder to `VMController` (shared read-only into Linux guests).
   Locally, build them with the commands in `.github/workflows/ci.yml` (`guest` job) if you need them.
+* **SQLite linkage (known issue, ZKit)**: `ZKit/Package.swift` declares `CSQLite` with `pkgConfig: "sqlite3"` and a
+  `.brew(["sqlite3"])` provider. On a Mac with Homebrew's (keg-only) sqlite, SwiftPM then links
+  `/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib` instead of the SDK's libsqlite3: the x86_64 slice fails to link and an
+  arm64 build would not launch on other Macs. CI deletes Homebrew's `sqlite3.pc` before building (and checks with
+  `otool -L` that the app links no Homebrew library). Locally, remove that `.pc` file (or `brew uninstall sqlite`)
+  until ZKit declares `pkgConfig` / `providers` for Linux only.
 * **Signing**: hardened runtime + App Sandbox. `ZComputer/ZComputer.entitlements` is committed exactly as
   docs/research/virtualization.md (a) specifies (app-sandbox, virtualization, network client + server, user-selected
   read-write, app-scope bookmarks); XcodeGen only references it. `Resources/PrivacyInfo.xcprivacy` declares the
