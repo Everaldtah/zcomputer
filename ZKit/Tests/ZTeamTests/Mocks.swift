@@ -19,7 +19,7 @@ func fakePNG(width: Int, height: Int) -> Data {
 
 /// Records every call. `inputDelay` makes each input call take a while (widens the window for interleaving).
 actor MockSurface: ComputerSurface {
-    enum Call: Equatable, Sendable {
+    enum Call: Hashable, Sendable {
         case screenshot
         case mouseMove(Int, Int)
         case click(Int, Int, MouseButton, Int)

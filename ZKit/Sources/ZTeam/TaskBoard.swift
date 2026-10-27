@@ -345,9 +345,15 @@ public actor TaskBoard {
         guard let i = items.firstIndex(where: { $0.id == Self.normalizeID(id) }) else { return nil }
         let summary = result.trimmingCharacters(in: .whitespacesAndNewlines)
         var t = items[i]
+        if t.status == .todo {
+            // Reopened or requeued while it ran (those clear the assignee): leave it. A worker that put its own
+            // task back to todo ended the attempt without finishing it: count it like any other attempt.
+            guard t.assignee != nil else { return t }
+            t.status = .doing
+        }
         switch t.status {
         case .todo:
-            return t  // reopened or requeued while it ran
+            return t
         case .done, .blocked:
             if (t.result ?? "").isEmpty, !summary.isEmpty { t.result = summary }
         case .doing, .failed:
