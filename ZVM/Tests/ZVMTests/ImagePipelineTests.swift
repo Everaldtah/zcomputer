@@ -160,25 +160,3 @@ final class DownloadSupportTests: XCTestCase {
     }
 }
 
-final class ImageCatalogTests: XCTestCase {
-    func testCatalogEntries() {
-        XCTAssertEqual(ImageCatalog.all.count, 4)
-        XCTAssertEqual(Set(ImageCatalog.all.map(\.id)).count, 4)
-        for image in ImageCatalog.all {
-            XCTAssertEqual(image.url.scheme, "https", image.id)
-            XCTAssertEqual(image.checksumsURL?.scheme, "https", image.id)
-            XCTAssertNotNil(image.checksumAlgorithm)
-            XCTAssertGreaterThan(image.downloadBytes, 100 << 20)
-            XCTAssertTrue(image.notes.contains("UNVERIFIED"), image.id)
-        }
-        let debianArm = ImageCatalog.image(id: "debian-13-arm64")
-        XCTAssertEqual(debianArm?.fileName, "debian-13-generic-arm64.raw")
-        XCTAssertEqual(debianArm?.format, .raw)
-        XCTAssertEqual(debianArm?.checksumAlgorithm, .sha512)
-        let ubuntuAmd = ImageCatalog.image(id: "ubuntu-24.04-amd64")
-        XCTAssertEqual(ubuntuAmd?.fileName, "noble-server-cloudimg-amd64.img")
-        XCTAssertEqual(ubuntuAmd?.format, .qcow2)
-        XCTAssertEqual(ImageCatalog.forHost.count, 2)
-        XCTAssertTrue(ImageCatalog.forHost.allSatisfy { $0.architecture == .host })
-    }
-}

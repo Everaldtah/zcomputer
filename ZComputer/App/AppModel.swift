@@ -58,6 +58,8 @@ final class AppModel {
     let library: LibraryModel
     let localModels: LocalModelsModel
     let machines: MachinesModel
+    /// The Image Library inside Machines (curated images, one-click machines).
+    let imageLibrary: ImageLibraryModel
     let team: TeamModel
     let shell: HostShellSession
 
@@ -102,7 +104,9 @@ final class AppModel {
         self.host = host
         self.localModels = LocalModelsModel(store: LocalModelStore(root: modelsRoot), host: host, keyStore: keyStore)
         self.library = LibraryModel(store: memory)
-        self.machines = MachinesModel(keyStore: keyStore)
+        let machines = MachinesModel(keyStore: keyStore)
+        self.machines = machines
+        self.imageLibrary = ImageLibraryModel(machines: machines)
         self.agent = AgentSession(bus: bus, memory: memory, resizer: resizer)
         self.team = TeamModel(bus: bus, memory: memory, resizer: resizer)
         self.shell = HostShellSession()
@@ -119,6 +123,7 @@ final class AppModel {
         guard !started else { return }
         started = true
         machines.reload()
+        imageLibrary.refreshCache()
         await reloadCatalog()
         await library.reload()
         await localModels.refreshInstalled()

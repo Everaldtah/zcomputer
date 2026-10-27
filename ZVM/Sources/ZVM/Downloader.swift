@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import ZCore
 
@@ -272,55 +271,6 @@ public enum Downloader {
                 return .success(.complete)
             }
             return .failure(ZError.http(status: http.statusCode, body: HTTPURLResponse.localizedString(forStatusCode: http.statusCode)))
-        }
-    }
-}
-
-/// Checksum files (`SHA256SUMS`, `SHA512SUMS`) and file hashing.
-public enum Checksums {
-    public enum Algorithm: String, Codable, Sendable, Hashable {
-        case sha256, sha512
-    }
-
-    /// Parses "<hex>  <name>" / "<hex> *<name>" lines into name → lowercase hex.
-    public static func parse(_ text: String) -> [String: String] {
-        var out: [String: String] = [:]
-        for raw in text.split(whereSeparator: \.isNewline) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
-            let fields = line.split(maxSplits: 1, whereSeparator: { $0 == " " || $0 == "\t" })
-            guard fields.count == 2 else { continue }
-            let hex = fields[0].lowercased()
-            guard hex.count >= 32, hex.allSatisfy(\.isHexDigit) else { continue }
-            var name = fields[1].trimmingCharacters(in: .whitespaces)
-            if name.hasPrefix("*") { name.removeFirst() }
-            if name.hasPrefix("./") { name.removeFirst(2) }
-            out[name] = hex
-        }
-        return out
-    }
-
-    /// Lowercase hex digest of a file, read in 8 MiB chunks.
-    public static func hexDigest(of url: URL, algorithm: Algorithm) throws -> String {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        switch algorithm {
-        case .sha256:
-            var hasher = SHA256()
-            while let chunk = try handle.read(upToCount: 8 << 20), !chunk.isEmpty { hasher.update(data: chunk) }
-            return Bytes.hex(hasher.finalize())
-        case .sha512:
-            var hasher = SHA512()
-            while let chunk = try handle.read(upToCount: 8 << 20), !chunk.isEmpty { hasher.update(data: chunk) }
-            return Bytes.hex(hasher.finalize())
-        }
-    }
-
-    /// Hex digest of in-memory data.
-    public static func hexDigest(of data: Data, algorithm: Algorithm) -> String {
-        switch algorithm {
-        case .sha256: return Bytes.hex(SHA256.hash(data: data))
-        case .sha512: return Bytes.hex(SHA512.hash(data: data))
         }
     }
 }
