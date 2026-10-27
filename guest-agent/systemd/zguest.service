@@ -1,0 +1,20 @@
+[Unit]
+Description=Z Computer guest agent (zguest)
+Documentation=https://github.com/Everaldtah/zcomputer/tree/main/guest-agent
+# Keep restarting while the virtio vsock transport comes up.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/zguest
+# Root is required: exec runs arbitrary commands, input needs /dev/uinput or
+# the desktop user's display, and screenshot/input switch to that user.
+User=root
+Restart=always
+RestartSec=2
+# Only stop the agent itself on restart/stop: apps it started for the user
+# (exec with "desktop": true) must keep running.
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
