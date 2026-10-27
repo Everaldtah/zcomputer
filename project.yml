@@ -1,0 +1,109 @@
+# XcodeGen spec: `xcodegen generate` writes ZComputer.xcodeproj (generated in CI, never committed).
+# MLX (in-app local models) is opt-in because it is slow to build and needs Xcode 26.4+ (Swift 6.3):
+#   ZC_MLX=YES xcodegen generate   # adds the MLX packages and the ZC_MLX compile condition
+#   xcodegen generate              # the same app without MLX (MLXClient compiles out)
+# See docs/APP.md.
+name: ZComputer
+
+include:
+  - path: ZComputer/Config/mlx.yml
+    relativePaths: false
+    enable: ${ZC_MLX}
+
+options:
+  bundleIdPrefix: com.everaldtah
+  deploymentTarget:
+    macOS: "15.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  groupSortPosition: top
+  xcodeVersion: "26.6"
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: BXQW8UBNM2
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+packages:
+  ZKit:
+    path: ZKit
+  # Virtualization.framework layer (macOS only).
+  ZVM:
+    path: ZVM
+  # Terminal emulator view. 1.99.x declares swift-tools-version 6.2 (Xcode 26+) and ships a build-tool plugin,
+  # so xcodebuild needs -skipPackagePluginValidation.
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    exactVersion: 1.99.1
+
+schemes:
+  ZComputer:
+    build:
+      targets:
+        ZComputer: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+targets:
+  ZComputer:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ZComputer
+        excludes:
+          - "**/.DS_Store"
+          - "Config/**"
+          - "Resources/zguest"
+          - "Resources/zguest/**"
+      # The static Linux guest-agent binaries (CI copies them in from the `guest` job). A folder reference keeps
+      # them in Contents/Resources/zguest, which VMController shares read-only into Linux guests.
+      - path: ZComputer/Resources/zguest
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: ZKit
+        products: [ZCore, ZProviders, ZAgent, ZMemory, ZTeam, ZLocal]
+      - package: ZVM
+        product: ZVM
+      - package: SwiftTerm
+        product: SwiftTerm
+      - sdk: Virtualization.framework
+    entitlements:
+      # Committed as-is (docs/research/virtualization.md (a)); no `properties` so XcodeGen never rewrites it.
+      path: ZComputer/ZComputer.entitlements
+    info:
+      path: ZComputer/Info.plist
+      properties:
+        CFBundleDisplayName: Z Computer
+        CFBundleName: Z Computer
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: "© 2026 Everald Tah"
+        ITSAppUsesNonExemptEncryption: false
+        NSLocalNetworkUsageDescription: Z Computer looks for AI model servers (Ollama, LM Studio, llama.cpp, Jan, vLLM) on this Mac and on addresses you enter, so agents can use your own local models.
+        NSDesktopFolderUsageDescription: The terminal and the agent's file import can read files on your Desktop when you ask them to.
+        NSDocumentsFolderUsageDescription: The terminal and the agent's file import can read files in Documents when you ask them to.
+        NSDownloadsFolderUsageDescription: Z Computer reads installer images (ISO, IPSW) and documents you pick from Downloads.
+        NSRemovableVolumesUsageDescription: Z Computer reads installer images you pick from external drives.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.everaldtah.zcomputer
+        PRODUCT_NAME: ZComputer
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+        DEAD_CODE_STRIPPING: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_EMIT_LOC_STRINGS: NO
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
