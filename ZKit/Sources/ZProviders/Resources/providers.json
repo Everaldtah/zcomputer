@@ -1,1 +1,2455 @@
-[]
+[
+  {
+    "id": "google",
+    "name": "Google AI Studio (Gemini API)",
+    "kind": "freemium",
+    "apiStyle": "gemini",
+    "baseURL": "https://generativelanguage.googleapis.com/v1beta",
+    "authHeader": "x-goog-api-key",
+    "keyURL": "https://aistudio.google.com/apikey",
+    "docsURL": "https://ai.google.dev/gemini-api/docs",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Free tier on gemini-3.8-flash, gemini-3.6-flash, gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-3-flash-preview and Gemma 4. Per-model RPM/TPM/RPD are no longer published; they are shown per project in AI Studio (aistudio.google.com/rate-limit). RPD resets at midnight Pacific.",
+      "notes": "No card needed (an active Google Cloud project is enough). gemini-4-argon is not on the free tier. Free-tier prompts and outputs are used to improve Google products. Since the 2026-03-23 terms only Paid Services may serve end users in the EEA/CH/UK (secondary source). OpenAI-compatible endpoint: https://generativelanguage.googleapis.com/v1beta/openai/ with Authorization: Bearer."
+    },
+    "models": [
+      {
+        "id": "gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": "geminiComputer",
+        "recommended": true
+      },
+      {
+        "id": "gemini-3.5-flash-lite",
+        "name": "Gemini 3.5 Flash-Lite",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": "geminiComputer",
+        "recommended": true
+      },
+      {
+        "id": "gemini-3.6-flash",
+        "name": "Gemini 3.6 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": "geminiComputer",
+        "recommended": false
+      },
+      {
+        "id": "gemini-3.1-flash-lite",
+        "name": "Gemini 3.1 Flash-Lite",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash (preview)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": "geminiComputer",
+        "recommended": false
+      },
+      {
+        "id": "gemini-4-argon",
+        "name": "Gemini 4 Argon",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": "geminiComputer",
+        "recommended": false
+      },
+      {
+        "id": "gemma-4-31b-it",
+        "name": "Gemma 4 31B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "gemma-4-26b-a4b-it",
+        "name": "Gemma 4 26B A4B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "computerUseNormalized1000",
+      "freeTierTrainsOnData",
+      "openAICompatAtV1betaOpenai",
+      "thinkingMinimalUnsupported:gemini-3.8-flash"
+    ],
+    "defaultModel": "gemini-3.8-flash"
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "kind": "free",
+    "apiStyle": "openai",
+    "baseURL": "https://api.groq.com/openai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://console.groq.com/keys",
+    "docsURL": "https://console.groq.com/docs/overview",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Free plan: openai/gpt-oss-120b, openai/gpt-oss-20b, qwen/qwen3.8-27b = 30 RPM / 1K RPD / 8K TPM / 200K TPD each. Limits are per organization.",
+      "notes": "No card. Phone verification at signup (secondary source). Vision: max 3 images per request, each image counts as 2,048 input tokens, so the 8K TPM free cap allows roughly 3 screenshots a minute."
+    },
+    "models": [
+      {
+        "id": "qwen/qwen3.8-27b",
+        "name": "Qwen 3.8 27B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "openai/gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-oss-20b",
+        "name": "GPT-OSS 20B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "noLogprobs",
+      "noMessageName",
+      "maxImagesPerRequest:3",
+      "noParallelToolCalls:openai/gpt-oss-*",
+      "phoneVerificationRequired"
+    ],
+    "defaultModel": "qwen/qwen3.8-27b"
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://openrouter.ai/api/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://openrouter.ai/settings/keys",
+    "docsURL": "https://openrouter.ai/docs/api/reference/overview",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Models whose id ends in :free: 20 requests/min; 50 requests/day with < 10 credits ever purchased, 1,000 requests/day once >= 10 credits purchased (one-time, lifetime total).",
+      "notes": "19 free model ids on 2026-10-27 (the set rotates). A negative credit balance blocks free models too. GET /api/v1/key reports the free-model daily counter. Some upstream free providers may log/train; the privacy setting for free models is separate."
+    },
+    "models": [
+      {
+        "id": "google/gemma-4-31b-it:free",
+        "name": "Gemma 4 31B (free)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "nvidia/nemotron-3.5-super-vl:free",
+        "name": "Nemotron 3.5 Super VL (free)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "google/gemma-4-26b-a4b-it:free",
+        "name": "Gemma 4 26B A4B (free)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "thinkingmachines/inkling:free",
+        "name": "Inkling (free)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "thinkingmachines/inkling-small:free",
+        "name": "Inkling Small (free)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "name": "Nemotron 3 Nano Omni (free)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "dots-studio/dots-3-note-preview:free",
+        "name": "dots.3 note preview (free)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 512000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openrouter/free",
+        "name": "Free models router",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 200000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "name": "Nemotron 3 Ultra (free)",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "poolside/laguna-s-2.1:free",
+        "name": "Laguna S 2.1 (free)",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "cohere/north-mini-code:free",
+        "name": "North Mini Code (free)",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "anthropic/claude-opus-5.5",
+        "name": "Claude Opus 5.5",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "anthropic/claude-sonnet-5.5",
+        "name": "Claude Sonnet 5.5",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-6.1-terra",
+        "name": "GPT-6.1 Terra",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1050000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "google/gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "x-ai/grok-4.7",
+        "name": "Grok 4.7",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 500000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "freeModelsSuffix::free",
+      "freeModelsRotate"
+    ],
+    "defaultModel": "google/gemma-4-31b-it:free"
+  },
+  {
+    "id": "cloudflare",
+    "name": "Cloudflare Workers AI",
+    "kind": "free",
+    "apiStyle": "openai",
+    "baseURL": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://dash.cloudflare.com/profile/api-tokens",
+    "docsURL": "https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/",
+    "modelsEndpoint": null,
+    "freeTier": {
+      "available": true,
+      "limits": "10,000 Neurons/day free on Workers Free and Workers Paid (resets 00:00 UTC). Beyond that: Workers Paid at $0.011 per 1,000 Neurons.",
+      "notes": "No card for the free allocation. Kimi K2.6/K2.7-code, GLM-5.2/5.3/5.3-flash and DeepSeek V4.x models require Workers Paid or AI Gateway credits. The {account_id} placeholder must be filled in."
+    },
+    "models": [
+      {
+        "id": "@cf/qwen/qwen3.8-27b",
+        "name": "Qwen 3.8 27B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "@cf/google/gemma-4-26b-a4b-it",
+        "name": "Gemma 4 26B A4B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "@cf/meta/llama-4-scout-17b-16e-instruct",
+        "name": "Llama 4 Scout 17B 16E",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "@cf/openai/gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 128000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "@cf/zai-org/glm-4.7-flash",
+        "name": "GLM-4.7 Flash",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "name": "Llama 3.3 70B fp8 fast",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 24000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "accountIDInURL",
+      "responsesAPIOnlyGptOss"
+    ],
+    "defaultModel": "@cf/qwen/qwen3.8-27b"
+  },
+  {
+    "id": "zai",
+    "name": "Z.ai (GLM)",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://api.z.ai/api/paas/v4",
+    "authHeader": "bearer",
+    "keyURL": "https://z.ai/manage-apikey/apikey-list",
+    "docsURL": "https://docs.z.ai/guides/overview/quick-start",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "GLM-4.7-Flash, GLM-4.5-Flash (text) and GLM-4.6V-Flash (vision) are priced Free (input, cached input, output). Concrete RPM/TPM for the free models are not published.",
+      "notes": "Pay-as-you-go for everything else. Since 2026-10-16 standard API keys and GLM Coding Plan keys are managed separately."
+    },
+    "models": [
+      {
+        "id": "glm-4.6v-flash",
+        "name": "GLM-4.6V-Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "glm-4.7-flash",
+        "name": "GLM-4.7-Flash",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-Flash",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "glm-5.3-flash",
+        "name": "GLM-5.3-Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "glm-5.3",
+        "name": "GLM-5.3",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "preserveReasoningContent"
+    ],
+    "defaultModel": "glm-4.6v-flash"
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral AI",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://api.mistral.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://console.mistral.ai/api-keys",
+    "docsURL": "https://docs.mistral.ai/",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Free mode (default for new accounts): API access with no credit card, limited included usage and rate limits. Exact per-model limits are shown only in the Admin Panel (API > Limits).",
+      "notes": "In Free mode Mistral may train on inputs/outputs unless you opt out (secondary source). Which models are reachable in Free mode is not documented per model."
+    },
+    "models": [
+      {
+        "id": "mistral-medium-3-5",
+        "name": "Mistral Medium 3.5",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "mistral-small-2603",
+        "name": "Mistral Small 4",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "mistral-large-4",
+        "name": "Mistral Large 4",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "ministral-14b-2512",
+        "name": "Ministral 3 14B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "freeTierTrainsOnData"
+    ],
+    "defaultModel": "mistral-small-2603"
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA NIM (build.nvidia.com)",
+    "kind": "free",
+    "apiStyle": "openai",
+    "baseURL": "https://integrate.api.nvidia.com/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://build.nvidia.com",
+    "docsURL": "https://build.nvidia.com/",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Free hosted endpoints for NVIDIA Developer Program members; about 40 requests/minute per account (community-reported, not an official guarantee; varies by model and load). No credit system since 2025-09.",
+      "notes": "Evaluation/prototyping only per NVIDIA trial terms. Phone verification may be required (secondary source). Vision/tool support per model on NIM is UNVERIFIED; flags reflect the model's own capabilities."
+    },
+    "models": [
+      {
+        "id": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "name": "Nemotron 3.5 Super VL 120B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "google/gemma-4-31b-it",
+        "name": "Gemma 4 31B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "moonshotai/kimi-k2.6",
+        "name": "Kimi K2.6",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "z-ai/glm-5.3-flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek-ai/deepseek-v4.1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "minimaxai/minimax-m3.1-flash",
+        "name": "MiniMax M3.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-oss-20b",
+        "name": "GPT-OSS 20B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "evaluationOnly",
+      "visionUnverified"
+    ],
+    "defaultModel": "google/gemma-4-31b-it"
+  },
+  {
+    "id": "sambanova",
+    "name": "SambaNova Cloud",
+    "kind": "free",
+    "apiStyle": "openai",
+    "baseURL": "https://api.sambanova.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://cloud.sambanova.ai/apis",
+    "docsURL": "https://docs.sambanova.ai/docs/en/models/rate-limits",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Free Tier (no payment method linked): 20 RPM / 20 RPD / 200,000 tokens per day per model for DeepSeek-V3.1, Meta-Llama-3.3-70B-Instruct, gpt-oss-120b and preview models DeepSeek-V3.2, gemma-4-31B-it.",
+      "notes": "Developer Tier (payment method linked): 60-240 RPM, 12K-48K RPD, 20M tokens/day across models. SambaNova's plans page says a payment method is needed to run first requests; the docs disagree."
+    },
+    "models": [
+      {
+        "id": "gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "gemma-4-31B-it",
+        "name": "Gemma 4 31B (preview)",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "DeepSeek-V3.1",
+        "name": "DeepSeek V3.1",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "Meta-Llama-3.3-70B-Instruct",
+        "name": "Llama 3.3 70B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "DeepSeek-V3.2",
+        "name": "DeepSeek V3.2 (preview)",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 32768,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "MiniMax-M3.1-Flash",
+        "name": "MiniMax M3.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "visionUnverified"
+    ],
+    "defaultModel": "gemma-4-31B-it"
+  },
+  {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://api.cerebras.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://cloud.cerebras.ai",
+    "docsURL": "https://inference-docs.cerebras.ai/",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Free Trial: $5 credits that expire 30 days after grant; 5 RPM / 30K uncached TPM / 90K total TPM / 1M tokens per hour / 1M tokens per day per model; free-trial context 64-65K.",
+      "notes": "A verified payment method is required to activate the API (no charge). Not a renewing free tier: after the credits expire you must buy credits."
+    },
+    "models": [
+      {
+        "id": "qwen-3.8-27b",
+        "name": "Qwen 3.8 27B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 65536,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "maxCompletionTokens",
+      "cardRequired",
+      "noParallelToolCalls:gpt-oss-120b"
+    ],
+    "defaultModel": "qwen-3.8-27b"
+  },
+  {
+    "id": "cohere",
+    "name": "Cohere",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://api.cohere.ai/compatibility/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://dashboard.cohere.com/api-keys",
+    "docsURL": "https://docs.cohere.com/docs/compatibility-api",
+    "modelsEndpoint": null,
+    "freeTier": {
+      "available": true,
+      "limits": "Trial (evaluation) keys: 1,000 API calls per month; 20 requests/min per chat model.",
+      "notes": "Trial keys are for evaluation only, not production/commercial use."
+    },
+    "models": [
+      {
+        "id": "command-a-plus-05-2026",
+        "name": "Command A+",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 192000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "command-a-03-2025",
+        "name": "Command A",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "command-a-vision-07-2025",
+        "name": "Command A Vision",
+        "vision": true,
+        "tools": false,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "reasoningEffortNoneOrHighOnly",
+      "noParallelToolCalls",
+      "noLogitBias",
+      "noN",
+      "evaluationOnly"
+    ],
+    "defaultModel": "command-a-plus-05-2026"
+  },
+  {
+    "id": "pollinations",
+    "name": "Pollinations",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://gen.pollinations.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://enter.pollinations.ai/keys",
+    "docsURL": "https://gen.pollinations.ai/docs",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Every generation request needs a key (sk_) and spends Pollen (about $1 per Pollen). Free Pollen comes from Quests on the enter.pollinations.ai dashboard; Quest Pollen works only on models that are not paid_only. No per-request rate limit on sk_ keys.",
+      "notes": "The old anonymous/no-key tier is gone. Model listing needs no key. The same endpoint also accepts Responses (/v1/responses, stateless) and Anthropic Messages (/v1/messages)."
+    },
+    "models": [
+      {
+        "id": "openai/gpt-5.4-nano",
+        "name": "GPT-5.4 Nano",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 400000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "z-ai/glm-5.3-flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "moonshotai/kimi-k2.6",
+        "name": "Kimi K2.6",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 262000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek/deepseek-v4.1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-5.4-mini",
+        "name": "GPT-5.4 Mini",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 400000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-6-luna",
+        "name": "GPT-6 Luna",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1050000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "google/gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "requiresPrepaidCredits"
+    ],
+    "defaultModel": "openai/gpt-5.4-nano"
+  },
+  {
+    "id": "vercel",
+    "name": "Vercel AI Gateway",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://ai-gateway.vercel.sh/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys",
+    "docsURL": "https://vercel.com/docs/ai-gateway",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Monthly free credit (amount not stated on the current pricing page; earlier docs said $5 every 30 days - UNVERIFIED) on a subset of Free Tier models, with lower per-model rate limits (429 when exceeded).",
+      "notes": "Buying any credits moves the team to the paid tier and ends the monthly free credit. BYOK only on the paid tier. Gateway does not retain prompts."
+    },
+    "models": [
+      {
+        "id": "google/gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "anthropic/claude-sonnet-5.5",
+        "name": "Claude Sonnet 5.5",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-6.1-terra",
+        "name": "GPT-6.1 Terra",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1050000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "zai/glm-5.3-flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "google/gemma-4-31b-it",
+        "name": "Gemma 4 31B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "poolside/laguna-s-2.1-free",
+        "name": "Laguna S 2.1 (free)",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "reflection/beam-free",
+        "name": "Beam (free)",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "freeTierModelSubset"
+    ],
+    "defaultModel": "google/gemini-3.8-flash"
+  },
+  {
+    "id": "ovh",
+    "name": "OVHcloud AI Endpoints",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://www.ovh.com/manager/#/public-cloud",
+    "docsURL": "https://help.ovhcloud.com/csm/en-public-cloud-ai-endpoints-getting-started?id=kb_article_view&sysparm_article=KB0065401",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Anonymous use without a key: 2 requests/min per IP per model. With a key: 400 requests/min per Public Cloud project per model (pay per token).",
+      "notes": "Whether anonymous calls to priced models are billed is not stated (UNVERIFIED); the models listed at $0 are guard/TTS/image models, not chat LLMs. EU (France) hosting."
+    },
+    "models": [
+      {
+        "id": "Qwen3.8-27B",
+        "name": "Qwen 3.8 27B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "Mistral-Small-3.2-24B-Instruct-2506",
+        "name": "Mistral Small 3.2 24B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "Qwen3.5-397B-A17B",
+        "name": "Qwen 3.5 397B A17B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "Meta-Llama-3_3-70B-Instruct",
+        "name": "Llama 3.3 70B",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "apiKeyOptional",
+      "visionUnverified",
+      "toolsUnverified"
+    ],
+    "defaultModel": "Qwen3.8-27B"
+  },
+  {
+    "id": "scaleway",
+    "name": "Scaleway Generative APIs",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://api.scaleway.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://console.scaleway.com/iam/api-keys",
+    "docsURL": "https://www.scaleway.com/en/docs/generative-apis/",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "First 1,000,000 tokens free (one-time bucket, not time-limited) plus 60 min of Whisper; then pay per token. With a payment method: 300 RPM / 200K TPM per model (secondary source).",
+      "notes": "EU (France) provider; does not train on API data. Facts from the free-llm-api-hub dataset (verified 2026-10-08); Scaleway's docs returned HTTP 403 to automated fetches on 2026-10-27."
+    },
+    "models": [
+      {
+        "id": "gemma-4-26b-a4b-it",
+        "name": "Gemma 4 26B A4B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "mistral-small-3.2-24b-instruct-2506",
+        "name": "Mistral Small 3.2 24B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "qwen3-235b-a22b-instruct-2507",
+        "name": "Qwen3 235B A22B 2507",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "llama-3.3-70b-instruct",
+        "name": "Llama 3.3 70B",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "visionUnverified",
+      "toolsUnverified"
+    ],
+    "defaultModel": "gemma-4-26b-a4b-it"
+  },
+  {
+    "id": "alibaba",
+    "name": "Alibaba Cloud Model Studio (Qwen, international)",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://modelstudio.console.alibabacloud.com",
+    "docsURL": "https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "New-user free quota (typically 1,000,000 tokens per model) for Singapore-region, International-scope models; valid 90 days from activation; one quota per account.",
+      "notes": "Only real-time inference is covered. Enable 'Free Quota Only' to avoid pay-as-you-go charges after the quota. Account information must be completed before activation."
+    },
+    "models": [
+      {
+        "id": "qwen3.8-flash",
+        "name": "Qwen3.8 Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "qwen3.7-plus",
+        "name": "Qwen3.7 Plus",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "qwen3.8-max",
+        "name": "Qwen3.8 Max",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "qwen3.8-omni-flash",
+        "name": "Qwen3.8 Omni Flash",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "workspaceSubdomainRecommended",
+      "regionBoundKeys"
+    ],
+    "defaultModel": "qwen3.8-flash"
+  },
+  {
+    "id": "baidu",
+    "name": "Baidu AI Studio (ERNIE)",
+    "kind": "freemium",
+    "apiStyle": "openai",
+    "baseURL": "https://aistudio.baidu.com/llm/lmapi/v3",
+    "authHeader": "bearer",
+    "keyURL": "https://aistudio.baidu.com/account/accessToken",
+    "docsURL": "https://ai.baidu.com/ai-doc/AISTUDIO/Mmhslv9lf",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "1,000,000 free tokens per developer (models consume it at different rates). Numeric RPM/TPM not published.",
+      "notes": "Uses the AI Studio Access Token as the API key. Paid Qianfan platform: https://qianfan.baidubce.com/v2 (third-party sources; UNVERIFIED)."
+    },
+    "models": [
+      {
+        "id": "ernie-5.1",
+        "name": "ERNIE 5.1",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "ernie-4.5-turbo-vl",
+        "name": "ERNIE 4.5 Turbo VL",
+        "vision": true,
+        "tools": false,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "kimi-k2.6",
+        "name": "Kimi K2.6",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek-v4-flash",
+        "name": "DeepSeek V4 Flash",
+        "vision": false,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "qwen3.5-27b",
+        "name": "Qwen3.5 27B",
+        "vision": true,
+        "tools": true,
+        "free": true,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "visionUnverified",
+      "toolsUnverified"
+    ],
+    "defaultModel": "ernie-5.1"
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic (Claude)",
+    "kind": "paid",
+    "apiStyle": "anthropic",
+    "baseURL": "https://api.anthropic.com/v1",
+    "authHeader": "x-api-key",
+    "keyURL": "https://platform.claude.com/settings/keys",
+    "docsURL": "https://platform.claude.com/docs/en/api/overview",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "claude-opus-5-5",
+        "name": "Claude Opus 5.5",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": "anthropicComputer",
+        "recommended": true
+      },
+      {
+        "id": "claude-sonnet-5-5",
+        "name": "Claude Sonnet 5.5",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": "anthropicComputer",
+        "recommended": true
+      },
+      {
+        "id": "claude-haiku-5-5",
+        "name": "Claude Haiku 5.5",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": "anthropicComputer",
+        "recommended": false
+      },
+      {
+        "id": "claude-fable-5-1",
+        "name": "Claude Fable 5.1",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": "anthropicComputer",
+        "recommended": false
+      },
+      {
+        "id": "claude-opus-5",
+        "name": "Claude Opus 5 (legacy)",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": "anthropicComputer",
+        "recommended": false
+      },
+      {
+        "id": "claude-sonnet-5",
+        "name": "Claude Sonnet 5 (legacy)",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": "anthropicComputer",
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "anthropicVersion:2023-06-01",
+      "computerToolset:computer_toolset_20260801",
+      "openAICompatAt:https://api.anthropic.com/v1/"
+    ],
+    "defaultModel": "claude-opus-5-5"
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.openai.com/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://platform.openai.com/api-keys",
+    "docsURL": "https://developers.openai.com/api/docs/models",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "gpt-6.1-terra",
+        "name": "GPT-6.1 Terra",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1050000,
+        "nativeComputerUse": "openAIComputer",
+        "recommended": true
+      },
+      {
+        "id": "gpt-6.1-sol",
+        "name": "GPT-6.1 Sol",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1050000,
+        "nativeComputerUse": "openAIComputer",
+        "recommended": true
+      },
+      {
+        "id": "gpt-6-astra",
+        "name": "GPT-6 Astra",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1050000,
+        "nativeComputerUse": "openAIComputer",
+        "recommended": false
+      },
+      {
+        "id": "gpt-6-luna",
+        "name": "GPT-6 Luna",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1050000,
+        "nativeComputerUse": "openAIComputer",
+        "recommended": false
+      },
+      {
+        "id": "gpt-5.4-mini",
+        "name": "GPT-5.4 Mini",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 400000,
+        "nativeComputerUse": "openAIComputer",
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "maxCompletionTokens",
+      "toolsRequireResponsesAPI:gpt-6.1-sol,gpt-6.1-terra",
+      "chatToolsOnlyWithReasoningNone:gpt-6-luna",
+      "computerToolType:computer"
+    ],
+    "defaultModel": "gpt-6.1-terra"
+  },
+  {
+    "id": "xai",
+    "name": "xAI (Grok)",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.x.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://console.x.ai",
+    "docsURL": "https://docs.x.ai/docs/models",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "grok-4.7",
+        "name": "Grok 4.7",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 500000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "grok-4.3",
+        "name": "Grok 4.3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "grok-build-0.1",
+        "name": "Grok Build 0.1",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 256000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "logprobsIgnored",
+      "imageTypesJpegPngOnly"
+    ],
+    "defaultModel": "grok-4.7"
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.deepseek.com",
+    "authHeader": "bearer",
+    "keyURL": "https://platform.deepseek.com/api_keys",
+    "docsURL": "https://api-docs.deepseek.com/",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "deepseek-flash",
+        "name": "DeepSeek Flash (V4.1-Flash-1017)",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "deepseek-v4-pro",
+        "name": "DeepSeek V4 Pro (0813)",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "anthropicCompatAt:https://api.deepseek.com/anthropic"
+    ],
+    "defaultModel": "deepseek-flash"
+  },
+  {
+    "id": "moonshot",
+    "name": "Moonshot AI (Kimi)",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.moonshot.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://platform.kimi.ai/console/api-keys",
+    "docsURL": "https://platform.kimi.ai/docs/api/chat",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": false,
+      "limits": "No free tier: at least $1 recharge to start; a $5 voucher after $5 cumulative recharge (secondary sources).",
+      "notes": "Tier 0 limits are low (reported 3 RPM, 1 concurrent) - UNVERIFIED."
+    },
+    "models": [
+      {
+        "id": "kimi-k3.1-pro",
+        "name": "Kimi K3.1 Pro",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "kimi-k3",
+        "name": "Kimi K3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "kimi-k2.7-code",
+        "name": "Kimi K2.7 Code",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "kimi-k2.6",
+        "name": "Kimi K2.6",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "maxCompletionTokens",
+      "preserveReasoningContent"
+    ],
+    "defaultModel": "kimi-k3.1-pro"
+  },
+  {
+    "id": "minimax",
+    "name": "MiniMax",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.minimax.io/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://platform.minimax.io/user-center/basic-information/interface-key",
+    "docsURL": "https://platform.minimax.io/docs/api-reference/text-openai-api",
+    "modelsEndpoint": null,
+    "freeTier": null,
+    "models": [
+      {
+        "id": "MiniMax-M3.1-Flash",
+        "name": "MiniMax M3.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "MiniMax-M3",
+        "name": "MiniMax M3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "preserveReasoningContent",
+      "thinkTagsInContent"
+    ],
+    "defaultModel": "MiniMax-M3.1-Flash"
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity (Agent API)",
+    "kind": "paid",
+    "apiStyle": "custom",
+    "baseURL": "https://api.perplexity.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://www.perplexity.ai/account/api/keys",
+    "docsURL": "https://docs.perplexity.ai/docs/agent-api/openai-compatibility",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "perplexity/sonar",
+        "name": "Sonar",
+        "vision": false,
+        "tools": false,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "anthropic/claude-sonnet-5-5",
+        "name": "Claude Sonnet 5.5 via Perplexity",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-6.1-sol",
+        "name": "GPT-6.1 Sol via Perplexity",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "google/gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash via Perplexity",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "responsesAPIOnly",
+      "chatCompletionsDeprecated",
+      "anthropicModelsRequireMaxOutputTokens"
+    ],
+    "defaultModel": "perplexity/sonar"
+  },
+  {
+    "id": "huggingface",
+    "name": "Hugging Face Inference Providers",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://router.huggingface.co/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://huggingface.co/settings/tokens",
+    "docsURL": "https://huggingface.co/docs/inference-providers/pricing",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": false,
+      "limits": "Free accounts get no included credits (purchase required). PRO and Team/Enterprise seats include $2.00/month of compute credits.",
+      "notes": "Credits apply only to requests 'Routed by Hugging Face', not to custom provider keys."
+    },
+    "models": [
+      {
+        "id": "Qwen/Qwen3.8-27B",
+        "name": "Qwen 3.8 27B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "google/gemma-4-31B-it",
+        "name": "Gemma 4 31B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "zai-org/GLM-5.3-Flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "moonshotai/Kimi-K3",
+        "name": "Kimi K3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-V4.1-Flash",
+        "name": "DeepSeek V4.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [],
+    "defaultModel": "Qwen/Qwen3.8-27B"
+  },
+  {
+    "id": "together",
+    "name": "Together AI",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.together.xyz/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://api.together.ai/settings/api-keys",
+    "docsURL": "https://docs.together.ai/docs/serverless-models",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": false,
+      "limits": "No free trial: platform access requires a minimum $15 first credit purchase.",
+      "notes": "Prism-ML/Ternary-Bonsai-27B is priced Free but still needs the platform minimum purchase."
+    },
+    "models": [
+      {
+        "id": "nvidia/NVIDIA-Nemotron-3.5-Super-VL",
+        "name": "Nemotron 3.5 Super VL",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "moonshotai/Kimi-K3",
+        "name": "Kimi K3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "Qwen/Qwen3.5-9B",
+        "name": "Qwen3.5 9B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "zai-org/GLM-5.3-Flash",
+        "name": "GLM-5.3 Flash",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048575,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-V4.1-Flash",
+        "name": "DeepSeek V4.1 Flash",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "openai/gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [],
+    "defaultModel": "nvidia/NVIDIA-Nemotron-3.5-Super-VL"
+  },
+  {
+    "id": "fireworks",
+    "name": "Fireworks AI",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.fireworks.ai/inference/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://app.fireworks.ai/settings/users/api-keys",
+    "docsURL": "https://docs.fireworks.ai/getting-started/quickstart",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": true,
+      "limits": "Small trial credit ($1 per secondary source, UNVERIFIED); about 10 RPM without a payment method (secondary source).",
+      "notes": "Prepaid credits; spend tiers raise limits."
+    },
+    "models": [
+      {
+        "id": "accounts/fireworks/models/glm-5p3-flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "accounts/fireworks/models/glm-5p3",
+        "name": "GLM-5.3",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "accounts/fireworks/models/kimi-k3",
+        "name": "Kimi K3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "visionUnverified"
+    ],
+    "defaultModel": "accounts/fireworks/models/glm-5p3-flash"
+  },
+  {
+    "id": "deepinfra",
+    "name": "DeepInfra",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.deepinfra.com/v1/openai",
+    "authHeader": "bearer",
+    "keyURL": "https://deepinfra.com/dash/api_keys",
+    "docsURL": "https://docs.deepinfra.com/chat/overview",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "Qwen/Qwen3.8-27B",
+        "name": "Qwen 3.8 27B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "google/gemma-4-31B-it",
+        "name": "Gemma 4 31B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "zai-org/GLM-5.3-Flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-V4.1-Flash",
+        "name": "DeepSeek V4.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "moonshotai/Kimi-K3",
+        "name": "Kimi K3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "concurrencyLimit200PerModel"
+    ],
+    "defaultModel": "Qwen/Qwen3.8-27B"
+  },
+  {
+    "id": "novita",
+    "name": "Novita AI",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.novita.ai/openai",
+    "authHeader": "bearer",
+    "keyURL": "https://novita.ai/settings/key-management",
+    "docsURL": "https://novita.ai/docs",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "qwen/qwen3.8-27b",
+        "name": "Qwen 3.8 27B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1000000,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "zai-org/glm-5.3-flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "google/gemma-4-31b-it",
+        "name": "Gemma 4 31B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "moonshotai/kimi-k3",
+        "name": "Kimi K3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [],
+    "defaultModel": "qwen/qwen3.8-27b"
+  },
+  {
+    "id": "hyperbolic",
+    "name": "Hyperbolic",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.hyperbolic.ai/inference/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://app.hyperbolic.ai/settings",
+    "docsURL": "https://www.hyperbolic.ai/docs/inference/overview",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": false,
+      "limits": "Inference needs a Pro plan (one-time $5+ deposit) or an Organization; Free-tier personal accounts get HTTP 403 inference_requires_pro.",
+      "notes": "Text models only: no vision."
+    },
+    "models": [
+      {
+        "id": "glm-5.3-flash",
+        "name": "GLM-5.3 Flash",
+        "vision": false,
+        "tools": false,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "kimi-k3",
+        "name": "Kimi K3",
+        "vision": false,
+        "tools": false,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek-v4.1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "vision": false,
+        "tools": false,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "minimax-m3",
+        "name": "MiniMax M3",
+        "vision": false,
+        "tools": false,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "textOnly",
+      "toolsUnverified"
+    ],
+    "defaultModel": "glm-5.3-flash"
+  },
+  {
+    "id": "chutes",
+    "name": "Chutes",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://llm.chutes.ai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://chutes.ai/app/api",
+    "docsURL": "https://chutes.ai/docs",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [
+      {
+        "id": "Qwen/Qwen3.8-27B-TEE",
+        "name": "Qwen 3.8 27B (TEE)",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 262144,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "google/gemma-4-31B-turbo-TEE",
+        "name": "Gemma 4 31B turbo (TEE)",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 131072,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "moonshotai/Kimi-K3-TEE",
+        "name": "Kimi K3 (TEE)",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "zai-org/GLM-5.2-TEE",
+        "name": "GLM-5.2 (TEE)",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": 1048576,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [],
+    "defaultModel": "Qwen/Qwen3.8-27B-TEE"
+  },
+  {
+    "id": "poe",
+    "name": "Poe",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://api.poe.com/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://poe.com/api/keys",
+    "docsURL": "https://creator.poe.com/docs/external-applications/openai-compatible-api",
+    "modelsEndpoint": "/models",
+    "freeTier": {
+      "available": false,
+      "limits": "Uses the Poe subscription's monthly points; add-on points can be bought. 500 requests/min.",
+      "notes": "No free API tier is documented."
+    },
+    "models": [
+      {
+        "id": "Claude-Opus-4.7",
+        "name": "Claude Opus 4.7",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "Claude-Sonnet-4.6",
+        "name": "Claude Sonnet 4.6",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "Gemini-3.1-Pro",
+        "name": "Gemini 3.1 Pro",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "GPT-5.4",
+        "name": "GPT-5.4",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [
+      "responseFormatIgnored",
+      "strictIgnored",
+      "noN",
+      "reasoningEffortViaExtraBody"
+    ],
+    "defaultModel": "Claude-Sonnet-4.6"
+  },
+  {
+    "id": "ollama-cloud",
+    "name": "Ollama Cloud",
+    "kind": "paid",
+    "apiStyle": "ollama",
+    "baseURL": "https://ollama.com",
+    "authHeader": "bearer",
+    "keyURL": "https://ollama.com/settings/keys",
+    "docsURL": "https://docs.ollama.com/cloud",
+    "modelsEndpoint": "/api/tags",
+    "freeTier": {
+      "available": false,
+      "limits": "Pay as you go ($0 plan, billed per token, 3 concurrent requests); Pro $20/mo includes $60 credits.",
+      "notes": "The older free starter allowance no longer appears on ollama.com/pricing (2026-10-27). OpenAI-compatible endpoint also at https://ollama.com/v1."
+    },
+    "models": [
+      {
+        "id": "gemma4:31b",
+        "name": "Gemma 4 31B",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      },
+      {
+        "id": "kimi-k3",
+        "name": "Kimi K3",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "glm-5.3-flash",
+        "name": "GLM-5.3 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "deepseek-v4.1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "vision": true,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      },
+      {
+        "id": "gpt-oss:120b",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": false
+      }
+    ],
+    "quirks": [],
+    "defaultModel": "gemma4:31b"
+  },
+  {
+    "id": "bedrock",
+    "name": "Amazon Bedrock (OpenAI-compatible)",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://bedrock-runtime.{region}.amazonaws.com/openai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://console.aws.amazon.com/bedrock/",
+    "docsURL": "https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions.html",
+    "modelsEndpoint": null,
+    "freeTier": null,
+    "models": [
+      {
+        "id": "openai.gpt-oss-120b-1:0",
+        "name": "GPT-OSS 120B",
+        "vision": false,
+        "tools": true,
+        "free": false,
+        "contextTokens": null,
+        "nativeComputerUse": null,
+        "recommended": true
+      }
+    ],
+    "quirks": [
+      "regionInURL",
+      "sigv4Alternative",
+      "claudeViaBedrockMessagesAPI"
+    ],
+    "defaultModel": "openai.gpt-oss-120b-1:0"
+  },
+  {
+    "id": "azure-openai",
+    "name": "Azure OpenAI (v1 API)",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "https://{resource}.openai.azure.com/openai/v1",
+    "authHeader": "bearer",
+    "keyURL": "https://ai.azure.com/",
+    "docsURL": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "resourceInURL",
+      "modelIsDeploymentName",
+      "apiKeyHeaderAlternative:api-key"
+    ],
+    "defaultModel": ""
+  },
+  {
+    "id": "ollama",
+    "name": "Ollama (local)",
+    "kind": "local",
+    "apiStyle": "ollama",
+    "baseURL": "http://localhost:11434",
+    "authHeader": "none",
+    "keyURL": "https://ollama.com/download",
+    "docsURL": "https://docs.ollama.com/api/openai-compatibility",
+    "modelsEndpoint": "/api/tags",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "openAICompatAt:http://localhost:11434/v1",
+      "dummyKeyIfOpenAI"
+    ],
+    "defaultModel": ""
+  },
+  {
+    "id": "lmstudio",
+    "name": "LM Studio",
+    "kind": "local",
+    "apiStyle": "openai",
+    "baseURL": "http://localhost:1234/v1",
+    "authHeader": "none",
+    "keyURL": "https://lmstudio.ai/docs/developer/core/authentication",
+    "docsURL": "https://lmstudio.ai/docs/developer/openai-compat",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "optionalAPIToken"
+    ],
+    "defaultModel": ""
+  },
+  {
+    "id": "llamacpp",
+    "name": "llama.cpp server",
+    "kind": "local",
+    "apiStyle": "openai",
+    "baseURL": "http://localhost:9931/v1",
+    "authHeader": "none",
+    "keyURL": "https://github.com/ggml-org/llama.cpp",
+    "docsURL": "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "legacyPort:8080",
+      "optionalAPIKey"
+    ],
+    "defaultModel": ""
+  },
+  {
+    "id": "jan",
+    "name": "Jan",
+    "kind": "local",
+    "apiStyle": "openai",
+    "baseURL": "http://127.0.0.1:1337/v1",
+    "authHeader": "none",
+    "keyURL": "https://www.jan.ai/docs/desktop/api-server",
+    "docsURL": "https://www.jan.ai/docs/desktop/api-server",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "optionalAPIKey"
+    ],
+    "defaultModel": ""
+  },
+  {
+    "id": "vllm",
+    "name": "vLLM",
+    "kind": "local",
+    "apiStyle": "openai",
+    "baseURL": "http://localhost:8000/v1",
+    "authHeader": "none",
+    "keyURL": "https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/",
+    "docsURL": "https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "optionalAPIKey"
+    ],
+    "defaultModel": ""
+  },
+  {
+    "id": "koboldcpp",
+    "name": "KoboldCpp",
+    "kind": "local",
+    "apiStyle": "openai",
+    "baseURL": "http://localhost:5001/v1",
+    "authHeader": "none",
+    "keyURL": "https://github.com/LostRuins/koboldcpp",
+    "docsURL": "https://github.com/LostRuins/koboldcpp/wiki",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "optionalAPIKey"
+    ],
+    "defaultModel": ""
+  },
+  {
+    "id": "custom",
+    "name": "Custom (OpenAI-compatible)",
+    "kind": "paid",
+    "apiStyle": "openai",
+    "baseURL": "",
+    "authHeader": "bearer",
+    "keyURL": "",
+    "docsURL": "",
+    "modelsEndpoint": "/models",
+    "freeTier": null,
+    "models": [],
+    "quirks": [
+      "userSuppliedBaseURL"
+    ],
+    "defaultModel": ""
+  }
+]
