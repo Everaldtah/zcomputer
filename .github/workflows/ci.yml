@@ -77,3 +77,84 @@ jobs:
         run: swift build --package-path ZVM
       - name: Test
         run: swift test --package-path ZVM
+
+  # The ZComputer app (xcodegen + xcodebuild, unsigned). macOS minutes: only on pushes to main and on request.
+  # Two legs: without MLX (fast, every app change) and with MLX (ZC_MLX=YES; mlx-swift needs Xcode >= 26.4).
+  app:
+    name: App (macOS, MLX ${{ matrix.mlx }})
+    needs: guest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mac)
+    runs-on: macos-26
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        mlx: ["NO", "YES"]
+    env:
+      ZC_MLX: ${{ matrix.mlx }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26.6
+        run: |
+          X=/Applications/Xcode_26.6.app
+          [ -d "$X" ] || X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          echo "Using $X"
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+          swift --version
+      - name: Guest agent binaries (from the guest job)
+        uses: actions/download-artifact@v4
+        with:
+          name: zguest
+          path: ZComputer/Resources/zguest
+      - name: Mark the guest binaries non-executable on the host (they only run inside the guest)
+        run: |
+          chmod a-x ZComputer/Resources/zguest/zguest-* 2>/dev/null || true
+          ls -la ZComputer/Resources/zguest
+      - name: Metal toolchain (the exit code lies; parse Status)
+        run: |
+          status() { xcodebuild -showComponent MetalToolchain 2>&1 | awk -F': *' '/^Status:/ { print tolower($2); exit }'; }
+          echo "MetalToolchain: $(status)"
+          [ "$(status)" = "installed" ] || xcodebuild -downloadComponent MetalToolchain
+          [ "$(status)" = "installed" ] || { echo "::error::MetalToolchain still '$(status)'"; exit 1; }
+      - name: Hide Homebrew's sqlite3.pc
+        # ZKit's CSQLite declares pkgConfig "sqlite3" with a brew provider. With Homebrew's (keg-only, arm64-only)
+        # sqlite on the runner, SwiftPM would link /opt/homebrew/opt/sqlite/lib/libsqlite3.dylib, which breaks the
+        # x86_64 slice and would not exist on users' Macs. Without the .pc file the module map links the SDK's libsqlite3.
+        run: find /opt/homebrew /usr/local -name 'sqlite3.pc' -print -delete 2>/dev/null || true
+      - name: Generate the Xcode project
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen --version
+          xcodegen generate
+          echo "MLX package references: $(grep -c 'mlx-swift' ZComputer.xcodeproj/project.pbxproj || true)"
+      - name: Cache SwiftPM checkouts
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/spm
+          key: spm-${{ matrix.mlx }}-${{ hashFiles('project.yml', 'ZComputer/Config/mlx.yml') }}
+          restore-keys: spm-${{ matrix.mlx }}-
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build -project ZComputer.xcodeproj -scheme ZComputer -configuration Debug \
+            -destination 'generic/platform=macOS' -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO 2>&1 | tee build.log \
+            | grep -E --line-buffered '(error:|warning: unre|\*\* BUILD)' || true
+          grep -q '\*\* BUILD SUCCEEDED \*\*' build.log || { echo "---- errors ----"; grep -E 'error:' build.log | sort -u | head -200; exit 1; }
+          echo "---- app warnings ----"
+          grep -E '/ZComputer/[^:]+\.swift:[0-9]+:[0-9]+: warning:' build.log | sort -u | head -80 || true
+          echo "---- sqlite linkage (must be the SDK's) ----"
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -maxdepth 6 -path '*Debug/ZComputer.app' | head -1)
+          echo "$APP"
+          # Debug builds put the code in ZComputer.debug.dylib next to the stub executable: check every binary.
+          otool -L "$APP"/Contents/MacOS/* 2>/dev/null | grep -i sqlite || true
+          ! otool -L "$APP"/Contents/MacOS/* 2>/dev/null | grep -q homebrew || { echo "::error::the app links Homebrew libraries"; exit 1; }
+      - name: Build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build-log-mlx-${{ matrix.mlx }}
+          path: build.log
+          if-no-files-found: ignore
