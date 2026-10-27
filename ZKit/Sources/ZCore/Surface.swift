@@ -60,6 +60,10 @@ public protocol ComputerSurface: AnyObject, Sendable {
     func typeText(_ text: String) async throws
     /// Presses a key combination, xdotool-style: "Return", "ctrl+c", "cmd+space", "alt+F4", "Escape".
     func pressKeys(_ combo: String) async throws
+    /// Holds / releases a key (xdotool key name, e.g. "shift", "ctrl", "a") so modifier-held clicks are possible.
+    /// Default implementations throw `ZError.unsupported`; surfaces that can do it override both.
+    func keyDown(_ key: String) async throws
+    func keyUp(_ key: String) async throws
 
     /// Runs a shell command inside the machine (guest agent or serial console). Throws `ZError.unsupported` when none.
     func shell(_ command: String, timeout: TimeInterval) async throws -> ShellResult
@@ -71,4 +75,6 @@ public extension ComputerSurface {
     func click(x: Int, y: Int) async throws { try await click(x: x, y: y, button: .left, count: 1) }
     func doubleClick(x: Int, y: Int) async throws { try await click(x: x, y: y, button: .left, count: 2) }
     func rightClick(x: Int, y: Int) async throws { try await click(x: x, y: y, button: .right, count: 1) }
+    func keyDown(_ key: String) async throws { throw ZError.unsupported("keyDown is not supported by this surface") }
+    func keyUp(_ key: String) async throws { throw ZError.unsupported("keyUp is not supported by this surface") }
 }
