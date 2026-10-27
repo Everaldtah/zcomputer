@@ -54,6 +54,16 @@ final class SerialConsoleEndpoint: TerminalEndpoint {
     func resize(cols: Int, rows: Int) {}
 }
 
+/// A weak reference to a terminal view that output callbacks may hold on any thread: `TerminalView.feed(byteArray:)`
+/// is nonisolated and thread-safe (SwiftTerm queues the bytes for the main thread).
+final class WeakTerminalView: @unchecked Sendable {
+    weak var view: TerminalView?
+
+    init(_ view: TerminalView) {
+        self.view = view
+    }
+}
+
 /// SwiftTerm's AppKit `TerminalView` bound to a `TerminalEndpoint`.
 struct TerminalHostView: NSViewRepresentable {
     let endpoint: any TerminalEndpoint
@@ -85,8 +95,9 @@ struct TerminalHostView: NSViewRepresentable {
             self.endpoint?.detach()
             self.view = view
             self.endpoint = endpoint
-            endpoint.attach { [weak view] bytes in
-                view?.feed(byteArray: bytes[...])
+            let target = WeakTerminalView(view)
+            endpoint.attach { bytes in
+                target.view?.feed(byteArray: bytes[...])
             }
         }
 

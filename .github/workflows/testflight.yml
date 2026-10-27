@@ -69,8 +69,10 @@ jobs:
           chmod 600 "$KEY_PATH"
 
       - name: Archive (Release, signed automatically)
+        # Homebrew off PATH so SwiftPM links the SDK's libsqlite3 (see the app job in ci.yml).
         run: |
           set -o pipefail
+          export PATH=/usr/bin:/bin:/usr/sbin:/sbin
           xcodebuild archive \
             -project ZComputer.xcodeproj -scheme ZComputer -configuration Release \
             -destination 'generic/platform=macOS' -archivePath "$RUNNER_TEMP/ZComputer.xcarchive" \

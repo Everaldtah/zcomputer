@@ -130,8 +130,11 @@ jobs:
           key: spm-${{ matrix.mlx }}-${{ hashFiles('project.yml', 'ZComputer/Config/mlx.yml') }}
           restore-keys: spm-${{ matrix.mlx }}-
       - name: Build
+        # Homebrew stays off PATH: ZKit's CSQLite declares pkgConfig "sqlite3" with a brew provider, and SwiftPM would
+        # otherwise link /opt/homebrew/opt/sqlite (arm64-only, absent on users' Macs) instead of the SDK's libsqlite3.
         run: |
           set -o pipefail
+          export PATH=/usr/bin:/bin:/usr/sbin:/sbin
           xcodebuild build -project ZComputer.xcodeproj -scheme ZComputer -configuration Debug \
             -destination 'generic/platform=macOS' -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
             -skipPackagePluginValidation -skipMacroValidation \
@@ -140,6 +143,10 @@ jobs:
           grep -q '\*\* BUILD SUCCEEDED \*\*' build.log || { echo "---- errors ----"; grep -E 'error:' build.log | sort -u | head -200; exit 1; }
           echo "---- app warnings ----"
           grep -E '/ZComputer/[^:]+\.swift:[0-9]+:[0-9]+: warning:' build.log | sort -u | head -80 || true
+          echo "---- sqlite linkage (must be the SDK's) ----"
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -maxdepth 6 -path '*Debug/ZComputer.app' | head -1)
+          otool -L "$APP/Contents/MacOS/ZComputer" | grep -i sqlite || true
+          ! otool -L "$APP/Contents/MacOS/ZComputer" | grep -q homebrew || { echo "::error::the app links Homebrew libraries"; exit 1; }
       - name: Build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
