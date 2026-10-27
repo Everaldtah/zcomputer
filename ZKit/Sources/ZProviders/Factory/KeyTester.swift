@@ -35,7 +35,7 @@ public enum KeyTester {
         let client: any LLMClient
         do {
             client = try await ProviderClientFactory.makeClient(provider: provider, model: modelID.isEmpty ? "probe" : modelID,
-                                                                keyStore: keyStore, http: HTTPClient(transport: transport, retry: .none))
+                                                                keyStore: keyStore, http: HTTPClient(transport: transport, retry: .noRetries))
         } catch {
             return failure(provider, method: method, model: modelID, latency: 0, error: error)
         }

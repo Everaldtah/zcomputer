@@ -16,7 +16,7 @@ public struct RetryPolicy: Sendable, Hashable {
     }
 
     public static let standard = RetryPolicy()
-    public static let none = RetryPolicy(maxRetries: 0)
+    public static let noRetries = RetryPolicy(maxRetries: 0)
 
     public func backoff(attempt: Int) -> Double {
         let raw = baseDelay * pow(2, Double(max(0, attempt)))
