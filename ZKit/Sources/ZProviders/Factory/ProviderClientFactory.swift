@@ -100,11 +100,14 @@ public enum ProviderClientFactory {
         if let override {
             let values = placeholderValues(from: override)
             if let scheme = override.scheme?.lowercased(), scheme == "http" || scheme == "https", override.host != nil {
-                var components = URLComponents(url: override, resolvingAgainstBaseURL: false)
                 let usedNames = Set(Placeholders.names(in: template))
-                components?.queryItems = components?.queryItems?.filter { !usedNames.contains($0.name) }
-                if components?.queryItems?.isEmpty == true { components?.queryItems = nil }
-                base = components?.string ?? override.absoluteString
+                if var components = URLComponents(url: override, resolvingAgainstBaseURL: false) {
+                    let kept = (components.queryItems ?? []).filter { !usedNames.contains($0.name) }
+                    components.queryItems = kept.isEmpty ? nil : kept
+                    base = components.string ?? override.absoluteString
+                } else {
+                    base = override.absoluteString
+                }
                 base = Placeholders.fill(base.removingPercentEncoding ?? base, values: values)
             } else {
                 base = Placeholders.fill(template, values: values)
