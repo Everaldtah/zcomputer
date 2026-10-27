@@ -236,7 +236,10 @@ public actor LeasedSurface: ComputerSurface {
         let keep = (screen && options.holdUntilScreenshot) || holdingSomething
         guard keep else {
             await lease.release(grant)
-            if groupGrant != nil { scheduleIdleRelease() }
+            if groupGrant != nil {
+                // Without the screenshot hold, the group lasts only while something is held down.
+                if options.holdUntilScreenshot { scheduleIdleRelease() } else { await endGroup() }
+            }
             return
         }
         if let existing = groupGrant, existing.token == grant.token {

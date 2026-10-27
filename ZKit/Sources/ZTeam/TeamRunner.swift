@@ -365,7 +365,9 @@ public actor TeamRunner {
             let boardText = await board.summary()
             let result = await runMember(lead, prompt: TeamPrompts.report(goal: spec.goal, board: boardText, review: reviewText))
             let text = result.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-            if result.success, !text.isEmpty {
+            // A report that says the goal was not met is still a report; fall back only when the run itself failed.
+            let wroteReport = await runners[lead.id]?.status == .finished
+            if wroteReport, !text.isEmpty {
                 report = text
             } else if !isStopping {
                 report = TeamPrompts.fallbackReport(goal: spec.goal, tasks: await board.tasks)
