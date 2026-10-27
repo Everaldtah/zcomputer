@@ -1,0 +1,23 @@
+# Xcode / SwiftPM
+*.xcodeproj/
+*.xcworkspace/
+.build/
+DerivedData/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+# Build output
+build/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+# OS
+.DS_Store
+# Secrets
+*.p8
+*.p12
+.env
+# Local VM data
+*.img
+*.iso
+*.ipsw
