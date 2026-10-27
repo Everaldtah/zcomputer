@@ -78,15 +78,19 @@ final class ModelDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Se
         let id = task.taskIdentifier
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                lock.lock()
-                pending[id] = Pending(destination: destination, continuation: continuation, onBytes: onBytes)
-                tasks[id] = task
-                lock.unlock()
+                register(id, Pending(destination: destination, continuation: continuation, onBytes: onBytes), task: task)
                 task.resume()
             }
         } onCancel: {
             self.cancelTask(id)
         }
+    }
+
+    private func register(_ id: Int, _ entry: Pending, task: URLSessionDownloadTask) {
+        lock.lock()
+        pending[id] = entry
+        tasks[id] = task
+        lock.unlock()
     }
 
     private func cancelTask(_ id: Int) {

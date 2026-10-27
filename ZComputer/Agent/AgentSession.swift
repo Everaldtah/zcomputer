@@ -16,7 +16,7 @@ final class AgentSession {
     private(set) var activity: [ActivityItem] = []
     private(set) var statuses: [String: AgentStatus] = [:]
     /// Agent id → name, in order of first appearance (the activity filter).
-    private(set) var agents: [(id: String, name: String)] = []
+    private(set) var agents: [AgentRef] = []
     private(set) var pendingApprovals: [ApprovalRequest] = []
     private(set) var resolvedApprovals: [String: ApprovalDecision] = [:]
     private(set) var pendingQuestion: PendingQuestion?
@@ -187,7 +187,7 @@ final class AgentSession {
 
     private func handle(_ envelope: AgentEventEnvelope) {
         let id = envelope.agentID
-        if !agents.contains(where: { $0.id == id }) { agents.append((id: id, name: envelope.agentName)) }
+        if !agents.contains(where: { $0.id == id }) { agents.append(AgentRef(id: id, name: envelope.agentName)) }
         let isMain = id == Self.mainAgentID
 
         switch envelope.event {

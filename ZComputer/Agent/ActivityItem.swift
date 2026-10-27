@@ -54,6 +54,12 @@ struct ChatLine: Identifiable, Hashable {
     }
 }
 
+/// An agent seen on the bus (for the activity filter).
+struct AgentRef: Identifiable, Hashable {
+    var id: String
+    var name: String
+}
+
 /// An `ask_user` question waiting for the human.
 struct PendingQuestion: Hashable {
     var callID: String

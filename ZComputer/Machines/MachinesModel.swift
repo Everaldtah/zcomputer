@@ -64,6 +64,7 @@ final class MachinesModel {
     @ObservationIgnored private var surfaces: [UUID: VMSurface] = [:]
     @ObservationIgnored private var watchers: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var jobTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var consoleEndpoints: [UUID: SerialConsoleEndpoint] = [:]
 
     init(keyStore: KeychainKeyStore) {
         self.keyStore = keyStore
@@ -117,13 +118,22 @@ final class MachinesModel {
     /// The controller only when it already exists (views must not create VMs just by rendering).
     func existingController(for id: UUID) -> VMController? { controllers[id] }
 
+    /// The Terminal view's endpoint for a VM's serial console (one per controller).
+    func consoleEndpoint(for id: UUID) -> SerialConsoleEndpoint? {
+        if let existing = consoleEndpoints[id] { return existing }
+        guard let controller = controllers[id] else { return nil }
+        let endpoint = SerialConsoleEndpoint(console: controller.console)
+        consoleEndpoints[id] = endpoint
+        return endpoint
+    }
+
     // MARK: Lifecycle
 
     func start(_ id: UUID) {
         errors[id] = nil
         Task {
             do {
-                let controller = try controller(for: id)
+                let controller = try self.controller(for: id)
                 try controller.buildVirtualMachine()
                 displayGeneration += 1
                 try await controller.start()
@@ -161,7 +171,7 @@ final class MachinesModel {
     /// Stops attaching the installer ISO (after the guest is installed) and saves the spec.
     func finishInstallation(_ id: UUID) {
         do {
-            let controller = try controller(for: id)
+            let controller = try self.controller(for: id)
             try controller.finishInstallation()
             try store?.save(controller.spec)
             reload()
@@ -188,6 +198,8 @@ final class MachinesModel {
             jobTasks[id]?.cancel()
             watchers[id]?.cancel()
             controllers[id] = nil
+            consoleEndpoints[id]?.detach()
+            consoleEndpoints[id] = nil
             surfaces[id] = nil
             states[id] = nil
             jobs[id] = nil
@@ -230,7 +242,7 @@ final class MachinesModel {
         case .demo:
             return demo
         case .vm(let id):
-            let controller = try controller(for: id)
+            let controller = try self.controller(for: id)
             guard controller.state.isActive else {
                 throw ZError.vm("Start “\(controller.spec.name)” in Machines before giving it to the agent.")
             }
@@ -266,7 +278,7 @@ final class MachinesModel {
         }
         Task {
             do {
-                let controller = try controller(for: id)
+                let controller = try self.controller(for: id)
                 jobs[id] = MachineJob(title: "Installing the guest agent", fraction: nil, detail: "over the serial console")
                 let result = try await controller.provisionGuestAgent(user: creds.user, password: creds.password)
                 jobs[id] = nil
@@ -285,7 +297,7 @@ final class MachinesModel {
         guard let store else { throw ZError.vm(storeError ?? "no VM store") }
         var spec = draft.makeSpec(guest: .linux)
         spec.install = .iso(iso)
-        spec.installBookmark = try FileBookmark.make(for: iso, securityScoped: true, readOnly: true)
+        spec.installBookmark = try Self.bookmark(for: iso, readOnly: true)
         spec.attachInstallMedia = true
         _ = try store.create(spec, createDisk: true)
         finishCreate(spec.id)
@@ -332,7 +344,7 @@ final class MachinesModel {
         guard let store else { throw ZError.vm(storeError ?? "no VM store") }
         var spec = draft.makeSpec(guest: .macOS)
         spec.install = .macOSRestoreImage(restoreImage)
-        if let restoreImage { spec.installBookmark = try FileBookmark.make(for: restoreImage, securityScoped: true, readOnly: true) }
+        if let restoreImage { spec.installBookmark = try Self.bookmark(for: restoreImage, readOnly: true) }
         let bundle = try store.create(spec, createDisk: false)
         let id = spec.id
         let initialSpec = spec
@@ -397,6 +409,13 @@ final class MachinesModel {
         }
     }
 
+    /// A security-scoped bookmark for a URL the user picked (access is opened around the call).
+    nonisolated static func bookmark(for url: URL, readOnly: Bool) throws -> FileBookmark {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        return try FileBookmark.make(for: url, securityScoped: true, readOnly: readOnly)
+    }
+
     private func finishCreate(_ id: UUID) {
         reload()
         selection = .vm(id)
@@ -456,7 +475,7 @@ struct MachineDraft: Hashable {
         spec.sharedFolders = sharedFolders.enumerated().map { index, url in
             let tag = index == 0 ? "shared" : "shared\(index + 1)"
             return SharedFolder(hostURL: url, tag: tag, readOnly: false,
-                                bookmark: try? FileBookmark.make(for: url, securityScoped: true, readOnly: false))
+                                bookmark: try? MachinesModel.bookmark(for: url, readOnly: false))
         }
         return spec
     }

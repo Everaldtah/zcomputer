@@ -88,7 +88,7 @@ private struct SidebarStatus: View {
                     .controlSize(.small)
             }
             .padding(8)
-            .background(RoundedRectangle(cornerRadius: 8).fill(.red.opacity(0.12)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.12)))
         }
     }
 }
