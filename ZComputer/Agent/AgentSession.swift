@@ -77,7 +77,9 @@ final class AgentSession {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         lastError = nil
-        if isRunning, let runner {
+        if isRunning {
+            // While the runner is being prepared there is nobody to talk to yet.
+            guard let runner else { return }
             Task { await runner.send(userMessage: text) }
             return
         }
