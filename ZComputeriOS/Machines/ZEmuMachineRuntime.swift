@@ -14,8 +14,8 @@ import ZEmu
 ///   (`mouse-absolute` followed by `mouse-click` with the current buttons) whenever the guest enabled it — Z Alpine
 ///   Desktop's saved state has it on, and v86 reports it again on restore — else relative PS/2 tracking. The route
 ///   is decided per move from `EmuController.absoluteMouseActive`, so it follows the guest without a race.
-/// * **Clock.** After resuming a saved state ZEmu sets the guest clock over the serial shell (`date -s @now`, else
-///   `sudo -n date -s`; `EmuController.syncClockAfterRestore`).
+/// * **Clock.** After resuming a saved state ZEmu sets the guest clock over the serial shell (`date -s @now`, through
+///   `sudo -n` when the console is not root; `EmuController.syncClockAfterRestore`).
 @MainActor
 final class ZEmuMachineRuntime: MachineRuntime {
     static let autosaveInterval: TimeInterval = 120

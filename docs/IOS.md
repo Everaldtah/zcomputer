@@ -90,7 +90,8 @@ the image's state / a cold boot), `stop(saveState:)`, `pause`, `resume`, `saveSt
 next start resumes there), console = `EmuConsole`, `makeSurface()` = `EmuSurface`. Autosave every 120 s
 (`enableAutosave(interval: 120)`); when the scene enters the background `MachinesModel` asks iOS for background time
 and each runtime pauses and saves (`enterBackground`), resuming on return; if iOS ends the app, the next start resumes
-that save. After a state restore ZEmu sets the guest clock over the serial shell (`date -s @now`, else `sudo -n`).
+that save. After a state restore ZEmu sets the guest clock over the serial shell (`date -s @now`, through `sudo -n`
+when the console's shell is not root, as in Z Alpine Desktop).
 
 **Touch → mouse.** The full-screen view's touch layer goes through `MachineInput` to the machine's `EmuSurface` (the
 same surface the agent uses; nothing injects JavaScript). Positions are screen fractions turned into guest pixels with
