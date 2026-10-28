@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "images": [
+    {
+      "id": "z-alpine-desktop-x86",
+      "name": "Z Alpine Desktop (x86)",
+      "summary": "Alpine Linux 3.22 with an XFCE desktop, prepared for agents (xdotool, scrot, zguest). Starts in about a second from a saved state.",
+      "kind": "instantStart",
+      "recommended": true,
+      "defaultMemoryMB": 512,
+      "vgaMemoryMB": 8,
+      "screen": { "width": 1024, "height": 768 },
+      "manifestURL": "https://github.com/Everaldtah/zcomputer/releases/download/images-v1/manifest.json",
+      "manifestImageID": "z-alpine-desktop-x86",
+      "files": [],
+      "serialLogin": { "user": "z", "password": "z" },
+      "network": "fetch",
+      "nic": "virtio",
+      "acpi": false,
+      "enable9p": true,
+      "emulatorCommit": "cc37f35c43bf14865d74ad76879ecf9410f69eb1",
+      "homepage": "https://github.com/Everaldtah/zcomputer/blob/main/docs/IMAGES-X86.md",
+      "license": "Alpine Linux packages (various open-source licences)",
+      "notes": [
+        "Built by .github/workflows/images.yml; the files and their sha256s come from manifest.json of the images-v1 release.",
+        "The state restores only with this exact v86 build, 512 MB RAM, 8 MB VGA memory, virtio-net, a 9p device and the pristine disk image.",
+        "User z / password z, passwordless sudo; ttyS0 is a logged-in bash in the saved state."
+      ]
+    },
+    {
+      "id": "alpine-virt-x86",
+      "name": "Alpine Linux 3.22 virt (x86 ISO)",
+      "summary": "Small text-mode Alpine live system and installer (50 MB). Boots to a root login on the serial console in about a minute.",
+      "kind": "iso",
+      "recommended": false,
+      "defaultMemoryMB": 256,
+      "vgaMemoryMB": 8,
+      "files": [
+        {
+          "role": "cdrom",
+          "name": "alpine-virt-3.22.7-x86.iso",
+          "url": "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86/alpine-virt-3.22.7-x86.iso",
+          "sizeBytes": 52428800,
+          "sha256": "569ad8cef1d6d3a3a6024f28ee94ea156974b32437240f2b217c56a99fbb6296",
+          "compression": "none"
+        }
+      ],
+      "serialLogin": { "user": "root", "password": "" },
+      "bootAssist": {
+        "waitForScreenText": "boot:",
+        "typeText": "virt console=tty0 console=ttyS0,115200\n",
+        "timeoutSeconds": 120
+      },
+      "network": "fetch",
+      "nic": "virtio",
+      "acpi": false,
+      "enable9p": true,
+      "homepage": "https://alpinelinux.org/downloads/",
+      "license": "Alpine Linux packages (various open-source licences)",
+      "notes": [
+        "The boot assist adds console=ttyS0 at the syslinux boot: prompt so the kernel, OpenRC and a getty use the serial console.",
+        "Log in as root without a password; setup-alpine installs to a disk."
+      ]
+    },
+    {
+      "id": "alpine-standard-x86",
+      "name": "Alpine Linux 3.22 standard (x86 ISO)",
+      "summary": "Alpine's standard live system and installer with the LTS kernel and more drivers (213 MB).",
+      "kind": "iso",
+      "recommended": false,
+      "defaultMemoryMB": 384,
+      "vgaMemoryMB": 8,
+      "files": [
+        {
+          "role": "cdrom",
+          "name": "alpine-standard-3.22.7-x86.iso",
+          "url": "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86/alpine-standard-3.22.7-x86.iso",
+          "sizeBytes": 223346688,
+          "sha256": "4d667cb2cfbe17577d6c0f24068adca5e679b1656df1d5c84a46a450a06cec17",
+          "compression": "none"
+        }
+      ],
+      "serialLogin": { "user": "root", "password": "" },
+      "bootAssist": {
+        "waitForScreenText": "boot:",
+        "typeText": "lts console=tty0 console=ttyS0,115200\n",
+        "timeoutSeconds": 120
+      },
+      "network": "fetch",
+      "nic": "virtio",
+      "acpi": false,
+      "enable9p": true,
+      "homepage": "https://alpinelinux.org/downloads/",
+      "license": "Alpine Linux packages (various open-source licences)",
+      "notes": [
+        "The standard ISO's syslinux has no serial directive and a one-second prompt; the boot assist types at the VGA boot: prompt."
+      ]
+    },
+    {
+      "id": "debian-12-i386-netinst",
+      "name": "Debian 12.15 (i386 netinst ISO)",
+      "summary": "Debian's network installer for 32-bit PCs (656 MB). Installing takes hours in an emulator; for patient experiments.",
+      "kind": "iso",
+      "recommended": false,
+      "defaultMemoryMB": 512,
+      "vgaMemoryMB": 8,
+      "files": [
+        {
+          "role": "cdrom",
+          "name": "debian-12.15.0-i386-netinst.iso",
+          "url": "https://cdimage.debian.org/cdimage/archive/12.15.0/i386/iso-cd/debian-12.15.0-i386-netinst.iso",
+          "sizeBytes": 687865856,
+          "sha256": "71506f6fa501d4ad50d0835666f5102e9c9b090123ca2668b995a911009c0a69",
+          "compression": "none"
+        }
+      ],
+      "network": "fetch",
+      "nic": "virtio",
+      "acpi": false,
+      "enable9p": false,
+      "homepage": "https://www.debian.org/releases/bookworm/",
+      "license": "Debian Free Software Guidelines",
+      "notes": [
+        "Debian 13 dropped i386 installer media; 12.15 from cdimage.debian.org/cdimage/archive is the last.",
+        "The installer runs on the VGA screen (no serial console)."
+      ]
+    },
+    {
+      "id": "tinycore-x86",
+      "name": "Tiny Core Linux 17.1 (x86 ISO)",
+      "summary": "A tiny graphical live system (26 MB) with FLWM and a dock. Boots to its desktop in under a minute.",
+      "kind": "iso",
+      "recommended": false,
+      "defaultMemoryMB": 256,
+      "vgaMemoryMB": 8,
+      "files": [
+        {
+          "role": "cdrom",
+          "name": "TinyCore-17.1.iso",
+          "url": "https://distro.ibiblio.org/tinycorelinux/17.x/x86/release/TinyCore-17.1.iso",
+          "sizeBytes": 27262976,
+          "sha256": "877f65d7e4fd2629ff06ebdd24dc982b50141fe3f8c8b0e7f01e089cec365357",
+          "compression": "none"
+        }
+      ],
+      "bootAssist": {
+        "waitForScreenText": "Boot TinyCore",
+        "delaySeconds": 1,
+        "keys": ["Return"],
+        "timeoutSeconds": 120
+      },
+      "network": "fetch",
+      "nic": "ne2k",
+      "acpi": false,
+      "enable9p": false,
+      "homepage": "http://tinycorelinux.net/",
+      "license": "GPL-2.0 (kernel, BusyBox) and others",
+      "notes": [
+        "sha256 computed from the ibiblio mirror; the file's md5 matches tinycorelinux.net's TinyCore-17.1.iso.md5.txt.",
+        "The boot menu waits 60 s; the boot assist presses Return. No serial console."
+      ]
+    },
+    {
+      "id": "tinycore-core-x86",
+      "name": "Tiny Core Linux 17.1 Core (x86 ISO, text)",
+      "summary": "The 20 MB text-only Tiny Core: a BusyBox shell on the VGA console.",
+      "kind": "iso",
+      "recommended": false,
+      "defaultMemoryMB": 128,
+      "vgaMemoryMB": 8,
+      "files": [
+        {
+          "role": "cdrom",
+          "name": "Core-17.1.iso",
+          "url": "https://distro.ibiblio.org/tinycorelinux/17.x/x86/release/Core-17.1.iso",
+          "sizeBytes": 20658176,
+          "sha256": "8fe45bbda0e9b52e5874dd6e9733aac5051e6311282c1e056c852fb1fd721b08",
+          "compression": "none"
+        }
+      ],
+      "bootAssist": {
+        "waitForScreenText": "boot:",
+        "delaySeconds": 1,
+        "keys": ["Return"],
+        "timeoutSeconds": 120
+      },
+      "network": "fetch",
+      "nic": "ne2k",
+      "acpi": false,
+      "enable9p": false,
+      "homepage": "http://tinycorelinux.net/",
+      "license": "GPL-2.0 (kernel, BusyBox) and others",
+      "notes": [
+        "sha256 computed from the ibiblio mirror; the file's md5 matches tinycorelinux.net's Core-17.1.iso.md5.txt."
+      ]
+    }
+  ]
+}
