@@ -1,0 +1,37 @@
+#!/sbin/openrc-run
+# Mounts the emulator's virtio 9p share (v86 mount tag "host9p") at /mnt/host
+# when the emulator provides one. Without a share this is a no-op, so the image
+# also boots in emulators that have no 9p device.
+
+description="Mount the host 9p share (tag host9p) at /mnt/host"
+
+depend() {
+	need localmount
+	after udev-settle
+	before zguest lightdm
+}
+
+start() {
+	ebegin "Mounting the host share on /mnt/host"
+	if mountpoint -q /mnt/host; then
+		eend 0
+		return 0
+	fi
+	modprobe -q 9pnet_virtio 2>/dev/null
+	modprobe -q 9p 2>/dev/null
+	if grep -qs '^host9p' /sys/bus/virtio/drivers/9pnet_virtio/virtio*/mount_tag; then
+		mkdir -p /mnt/host
+		mount /mnt/host && chmod 1777 /mnt/host 2>/dev/null
+		eend $?
+	else
+		einfo "no 9p device with mount tag host9p"
+		eend 0
+	fi
+}
+
+stop() {
+	mountpoint -q /mnt/host || return 0
+	ebegin "Unmounting /mnt/host"
+	umount /mnt/host
+	eend $?
+}

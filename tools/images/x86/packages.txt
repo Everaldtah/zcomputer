@@ -1,0 +1,30 @@
+# Alpine (main + community, x86 = 32-bit i686) packages for z-alpine-desktop-x86.
+# One or more names per line; '#' starts a comment. Read by build-image.sh.
+#
+# Not the `xfce4` metapackage: it pulls tumbler -> libgepub -> webkit2gtk,
+# gstreamer and ffmpeg (~250 MB) for thumbnails. The components are listed instead.
+# `ttf-dejavu` from the original recipe is called `font-dejavu` on Alpine.
+
+# base system, kernel, boot
+alpine-base alpine-keys ifupdown-ng
+linux-virt linux-firmware-none mkinitfs syslinux e2fsprogs util-linux
+eudev udev-init-scripts udev-init-scripts-openrc
+bash sudo shadow openssh ca-certificates curl nano python3 procps
+
+# X11 (Xorg on the kernel's bochs-drm framebuffer; PS/2 + VMware absolute mouse)
+xorg-server xf86-video-fbdev xf86-video-vesa
+xf86-input-evdev xf86-input-libinput xf86-input-vmmouse
+xinit xrandr xset xauth
+
+# desktop: XFCE without the thumbnailer, LightDM with autologin
+xfce4-session xfwm4 xfce4-panel xfdesktop xfce4-settings xfconf thunar
+xfce4-appfinder xfce4-terminal adwaita-icon-theme
+lightdm lightdm-gtk-greeter
+dbus dbus-x11 elogind polkit-elogind
+
+# agent tools (zguest uses scrot for screenshots, xdotool for input)
+xdotool scrot xclip
+
+# fonts + a light browser (NetSurf; firefox-esr exists for x86 but adds ~250 MB)
+font-dejavu font-noto
+netsurf

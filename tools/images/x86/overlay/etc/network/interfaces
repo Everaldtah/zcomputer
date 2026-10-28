@@ -1,0 +1,9 @@
+auto lo
+iface lo inet loopback
+
+# v86 virtio-net (net_device: { type: "virtio" }). udhcpc backgrounds itself
+# when no DHCP server answers and keeps retrying, so a state restored without
+# a network backend picks up a lease once one is attached.
+auto eth0
+iface eth0 inet dhcp
+	udhcpc-opts -t 2 -T 2

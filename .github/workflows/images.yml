@@ -1,0 +1,154 @@
+# Prebuilt VM images for the app. Produces WORKFLOW ARTIFACTS ONLY: nothing is
+# released or published here. After review, tools/images/publish.sh uploads a
+# downloaded artifact to the GitHub Release `images-v1`.
+#
+# z-alpine-desktop-x86: 32-bit Alpine + XFCE for the v86 WebAssembly emulator,
+# booted once in v86 under Node to save a desktop state, then smoke-tested by
+# restoring that state from the compressed files. See docs/IMAGES-X86.md.
+name: Images
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 5 7 * *" # monthly (7th, 05:23 UTC): picks up Alpine security updates
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ALPINE_BRANCH: v3.22
+  # bios/ of the copy/v86 commit that npm v86@0.5.472 (tools/images/x86/package-lock.json) was built from
+  V86_COMMIT: cc37f35c43bf14865d74ad76879ecf9410f69eb1
+  SEABIOS_SHA256: 73e3f359102e3a9982c35fce98eb7cd08f18303ac7f1ba6ebfbe6cdc1c244d98
+  VGABIOS_SHA256: a4bc0d80cc3ca028c73dafa8fee396b8d054ce87ebd8abfbd31b06b437607880
+
+jobs:
+  alpine-x86:
+    name: Z Alpine Desktop (x86)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      OUT: ${{ github.workspace }}/out
+      IMG: ${{ github.workspace }}/out/z-alpine-desktop-x86.img
+      STATE: ${{ github.workspace }}/out/z-alpine-desktop-x86.state
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/images/x86/package-lock.json
+
+      - name: Version
+        id: v
+        run: |
+          echo "version=$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          mkdir -p "$OUT/logs" "$OUT/artifact" "$OUT/bios"
+          nproc; free -m; df -h "$GITHUB_WORKSPACE"
+
+      - name: zguest for linux/386
+        working-directory: guest-agent
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -trimpath \
+            -ldflags="-s -w -X main.version=${{ steps.v.outputs.version }}" -o "$OUT/zguest-linux-386" .
+          file "$OUT/zguest-linux-386"
+
+      - name: apk download cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/zc-apk-x86
+          key: apk-x86-${{ env.ALPINE_BRANCH }}-${{ hashFiles('tools/images/x86/packages.txt') }}-${{ github.run_id }}
+          restore-keys: |
+            apk-x86-${{ env.ALPINE_BRANCH }}-${{ hashFiles('tools/images/x86/packages.txt') }}-
+            apk-x86-${{ env.ALPINE_BRANCH }}-
+
+      - name: Build the disk image (apk.static + chroot + extlinux)
+        run: |
+          mkdir -p ~/.cache/zc-apk-x86
+          sudo env APK_CACHE="$HOME/.cache/zc-apk-x86" ALPINE_BRANCH="$ALPINE_BRANCH" \
+            IMAGE_VERSION="${{ steps.v.outputs.version }}" \
+            sh tools/images/x86/build-image.sh "$OUT" "$OUT/zguest-linux-386"
+          sudo chown -R "$(id -u):$(id -g)" "$OUT" ~/.cache/zc-apk-x86
+          (cd "$OUT" && sha256sum z-alpine-desktop-x86.img > img.sha256 && cat img.sha256)
+
+      - name: v86 (npm) and its BIOS files
+        working-directory: tools/images/x86
+        run: |
+          npm ci --no-audit --no-fund
+          for f in seabios.bin vgabios.bin; do
+            curl -fsSL --retry 3 -o "$OUT/bios/$f" "https://raw.githubusercontent.com/copy/v86/$V86_COMMIT/bios/$f"
+          done
+          echo "$SEABIOS_SHA256  $OUT/bios/seabios.bin" | sha256sum -c -
+          echo "$VGABIOS_SHA256  $OUT/bios/vgabios.bin" | sha256sum -c -
+
+      - name: Boot to the desktop in v86 and save the state
+        working-directory: tools/images/x86
+        run: |
+          node boot-snapshot.mjs --bios "$OUT/bios" --img "$IMG" --state "$STATE" \
+            --logs "$OUT/logs" --timeout-min 90
+
+      - name: The boot left the image untouched
+        run: cd "$OUT" && sha256sum -c img.sha256
+
+      - name: Compress (xz -T0 -9)
+        run: |
+          for f in img state; do
+            xz -T0 -9 -c "$OUT/z-alpine-desktop-x86.$f" > "$OUT/artifact/z-alpine-desktop-x86.$f.xz"
+          done
+          ls -l "$OUT/artifact"
+
+      - name: Smoke test (restore the state from the .xz files)
+        working-directory: tools/images/x86
+        run: |
+          S="$RUNNER_TEMP/smoke"; mkdir -p "$S"
+          xz -dc "$OUT/artifact/z-alpine-desktop-x86.img.xz" > "$S/z-alpine-desktop-x86.img"
+          xz -dc "$OUT/artifact/z-alpine-desktop-x86.state.xz" > "$S/z-alpine-desktop-x86.state"
+          cmp "$IMG" "$S/z-alpine-desktop-x86.img"
+          cmp "$STATE" "$S/z-alpine-desktop-x86.state"
+          node smoke-test.mjs --bios "$OUT/bios" --img "$S/z-alpine-desktop-x86.img" \
+            --state "$S/z-alpine-desktop-x86.state" --logs "$OUT/logs"
+          rm -rf "$S"
+
+      - name: manifest.json + README.md
+        working-directory: tools/images/x86
+        run: |
+          node manifest.mjs --out "$OUT/artifact" --img "$IMG" --state "$STATE" --logs "$OUT/logs" \
+            --build-info "$OUT/build-info.txt" --bios "$OUT/bios" --v86-commit "$V86_COMMIT" \
+            --version "${{ steps.v.outputs.version }}"
+          cat "$OUT/artifact/manifest.json"
+          cat "$OUT/artifact/README.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the image artifact (private to this repository's Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: z-alpine-desktop-x86
+          path: |
+            out/artifact/z-alpine-desktop-x86.img.xz
+            out/artifact/z-alpine-desktop-x86.state.xz
+            out/artifact/manifest.json
+            out/artifact/README.md
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: z-alpine-desktop-x86-logs
+          path: |
+            out/logs/
+            out/build-info.txt
+            out/packages-installed.txt
+          retention-days: 30
+          if-no-files-found: ignore

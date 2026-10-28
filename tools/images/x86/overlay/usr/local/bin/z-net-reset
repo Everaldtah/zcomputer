@@ -1,0 +1,12 @@
+#!/bin/sh
+# Re-initialises eth0 after a v86 state restore. v86 gives the NIC a random MAC
+# on restore unless the host passes preserve_mac_from_state_image: true; Linux
+# keeps the old one until the virtio-net driver is reloaded. Then DHCP again.
+set -e
+[ "$(id -u)" = 0 ] || exec sudo "$0" "$@"
+ifdown eth0 >/dev/null 2>&1 || true
+modprobe -r virtio_net
+modprobe virtio_net
+sleep 1
+ifup eth0
+ip -4 addr show dev eth0

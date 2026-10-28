@@ -1,0 +1,6 @@
+#!/bin/sh
+# LightDM display-setup-script: runs as root on the X server before the session.
+# The fbdev driver cannot switch modes; the kernel sets 1024x768 (video= on the
+# kernel command line). Here only the X screensaver and DPMS are turned off.
+xset s off s noblank -dpms 2>/dev/null
+exit 0

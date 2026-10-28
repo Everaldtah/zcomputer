@@ -1,0 +1,11 @@
+
+  Z Alpine Desktop (x86)  --  32-bit Alpine Linux for the v86 emulator
+
+  desktop  XFCE on Xorg, display :0, 1024x768, LightDM autologin as z
+  login    z / z   (passwordless sudo; root login is disabled)
+  agent    zguest on 127.0.0.1:5555   rc-service zguest status
+  share    /mnt/host = the emulator's 9p share (tag host9p), when provided
+  tools    xdotool, scrot, xclip, python3, curl, netsurf-gtk3
+  network  eth0 via DHCP; after a state restore run: z-net-reset
+  more     sudo apk add <package>   (main + community)
+
