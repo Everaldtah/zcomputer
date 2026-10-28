@@ -15,7 +15,7 @@ let csqlite: Target = .systemLibrary(name: "CSQLite", path: "Sources/CSQLite")
 
 let package = Package(
     name: "ZKit",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v15), .iOS(.v17)],
     products: [
         .library(name: "ZCore", targets: ["ZCore"]),
         .library(name: "ZProviders", targets: ["ZProviders"]),

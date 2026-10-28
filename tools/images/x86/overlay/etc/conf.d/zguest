@@ -1,0 +1,4 @@
+# Address the Z Computer guest agent listens on (newline-delimited JSON, see
+# guest-agent/PROTOCOL.md). There is NO authentication: anyone who can connect
+# gets root. Keep it on 127.0.0.1 unless the network is private to the host.
+ZGUEST_LISTEN="127.0.0.1:5555"

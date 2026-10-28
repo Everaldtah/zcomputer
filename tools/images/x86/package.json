@@ -1,0 +1,12 @@
+{
+  "name": "zcomputer-image-x86",
+  "private": true,
+  "type": "module",
+  "description": "Boots the Z Alpine Desktop (x86) image in v86 under Node, saves the desktop state and smoke-tests it",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "v86": "0.5.472"
+  }
+}
