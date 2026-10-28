@@ -416,7 +416,11 @@ public final class EmuController {
         guard spec.serial, state == .running else { return }
         guard await shell.probe(timeout: 6) else { return }
         let now = Int(Date().timeIntervalSince1970)
-        _ = try? await shell.run("date -s @\(now) >/dev/null 2>&1 || sudo -n date -s @\(now) >/dev/null 2>&1", timeout: 20)
+        // Choose sudo by uid, not by date's exit status: BusyBox `date -s` run by a normal user prints "can't set
+        // date" but still exits 0 (Z Alpine Desktop's serial console is a shell of user z).
+        let set = "date -s @\(now)"
+        _ = try? await shell.run("{ if [ \"$(id -u)\" = 0 ]; then \(set); else sudo -n \(set); fi; } >/dev/null 2>&1",
+                                 timeout: 20)
     }
 
     /// Copies `shareDirectory` into the 9p filesystem (files that are not there yet; at most 256 MB).
