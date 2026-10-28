@@ -121,27 +121,39 @@ if [ "${PRUNE_GL:-1}" = 1 ]; then
     # xfwm4 compositing is off. `sudo apk fix mesa llvm20-libs` brings it back.
     before=$(du -sm /usr/lib | cut -f1)
     for p in $(apk info 2>/dev/null | grep -E '^(llvm[0-9]+-libs|spirv-tools)$'); do
-        apk info -qL "$p" 2>/dev/null | grep -E '^(usr/)?lib/' | while read -r f; do rm -f "/$f"; done
+        apk info -qL "$p" 2>/dev/null | grep -E '^(usr|lib)/' | while read -r f; do rm -f "/$f"; done
     done
     rm -f /usr/lib/libgallium-*.so
-    rm -rf /usr/lib/dri /usr/lib/gbm
+    rm -rf /usr/lib/dri /usr/lib/gbm /usr/lib/gallium-pipe
     echo "/usr/lib: ${before} MiB -> $(du -sm /usr/lib | cut -f1) MiB"
 fi
 
 step "shared-library check"
-# Every program and Xorg module must still resolve its libraries. Mesa's own
-# GL front ends (libEGL_mesa, libGLX_mesa, ...) and the disabled GLX/glamor
-# modules are allowed to miss the pruned gallium/LLVM libraries.
-allow='libEGL_mesa|libGLX_mesa|libxatracker|libOSMesa|libgallium|libvulkan_|libglamoregl|/extensions/libglx|/dri/|libgbm'
+# Every program must load: no missing library, no unresolved symbol. Shared
+# objects and plugins must find their libraries (unresolved symbols are normal
+# for plugins: the host program provides them). Mesa's GL libraries and the
+# disabled GLX/glamor modules may miss the pruned gallium/LLVM libraries; if a
+# program links one of them, the program itself fails here.
+allow='/usr/lib/lib(GL|EGL|GLESv[12]_CM|GLESv2|EGL_mesa|GLX_mesa|xatracker|OSMesa|gbm)\.so|/libglamoregl\.so|/extensions/libglx\.so'
 bad=0
+checked=0
 for f in $(find /bin /sbin /usr/bin /usr/sbin /usr/libexec /usr/lib /usr/local/bin -type f \( -perm -u+x -o -name '*.so*' \) 2>/dev/null); do
     [ "$(head -c 4 "$f" 2>/dev/null | od -An -c | tr -d ' ')" = '177ELF' ] || continue
-    miss=$(ldd "$f" 2>&1 | grep 'not found' || true)
+    checked=$((checked + 1))
+    out=$(ldd "$f" 2>&1 || true)
+    # musl's ldd: "Error loading shared library libX.so: No such file or directory (needed by ...)"
+    miss=$(printf '%s\n' "$out" | grep 'Error loading shared library' || true)
+    case "$f" in
+        *.so|*.so.*) ;;
+        /bin/*|/sbin/*|/usr/bin/*|/usr/sbin/*|/usr/libexec/*|/usr/local/bin/*)
+            miss="$miss$(printf '%s\n' "$out" | grep 'Error relocating' || true)" ;;
+    esac
     [ -z "$miss" ] && continue
     if printf '%s\n' "$f" | grep -Eq "$allow"; then continue; fi
-    echo "MISSING LIBS: $f"; printf '%s\n' "$miss" | sed 's/^/    /'
+    echo "BROKEN: $f"; printf '%s\n' "$miss" | head -5 | sed 's/^/    /'
     bad=1
 done
+echo "checked $checked ELF files"
 [ "$bad" = 0 ] || { echo "shared-library check failed" >&2; exit 1; }
 echo "all binaries resolve their libraries"
 
