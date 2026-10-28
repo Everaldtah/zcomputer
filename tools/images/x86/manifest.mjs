@@ -66,11 +66,13 @@ const vgaBios = {
 const notes = [
     `Alpine Linux ${info.alpine} (i686), kernel ${info.kernel}, ${info.packages} packages; XFCE ${"4.20"} on Xorg (fbdev on bochs-drm), LightDM autologin as z.`,
     "The state only restores with the pristine image (img.decompressedSha256) as v86's hda, loaded asynchronously (async: true or a File), so guest writes stay in memory; never write guest changes back into the image if you want to restore this state again.",
-    `Restore with the same v86 build (${v86Version()}, ${a["v86-commit"].slice(0, 7)}), the same BIOS files and the machine options in v86.options; v86 needs a 9p filesystem option (e.g. filesystem: {} or handle9p) because the state was taken with one.`,
+    `Restore with the same v86 build (${v86Version()}, ${a["v86-commit"].slice(0, 7)}), the same BIOS files and the machine options in emulator.options; v86 needs a 9p filesystem option (e.g. filesystem: {} or handle9p) because the state was taken with one.`,
     "Pass preserve_mac_from_state_image: true (or run z-net-reset in the guest after restoring) so the guest's virtio-net MAC matches; DHCP (udhcpc) keeps retrying in the background until a network backend answers.",
     "The guest clock is the build time after a restore; set it from the host, e.g. `sudo date -s @<unix-seconds>` on the serial console or through zguest exec.",
     "ttyS0 is a logged-in bash for user z (115200 8N1): send a newline and commands; sudo needs no password.",
     "zguest listens on 127.0.0.1:5555 inside the guest (no vsock in v86); /usr/local/bin/zg sends one request (zg ping, zg sysinfo, zg --png FILE screenshot).",
+    "Pointer: the guest uses v86's VMware absolute mouse. Send bus 'mouse-absolute' [x, y, screenW, screenH] and then 'mouse-click' [left, middle, right] (current buttons): the guest reads the absolute position only on a PS/2 mouse interrupt, which a click event raises (a zero mouse-delta does not).",
+    "Keyboard: PS/2, scan code set 1 via keyboard_send_scancodes (press, then code | 0x80); keyboard_send_text needs v86's browser keyboard adapter.",
     "OpenGL is not available: Mesa's gallium drivers and LLVM were removed to save ~350 MB (sudo apk fix mesa llvm20-libs restores them).",
 ];
 
