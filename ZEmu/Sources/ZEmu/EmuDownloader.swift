@@ -183,11 +183,13 @@ public enum EmuDownloader {
 
         /// Validates the response and opens the part file at the right offset. Called under the lock.
         private func begin(response: URLResponse?) throws {
-            guard let http = response as? HTTPURLResponse else { throw ZError.network("no HTTP response") }
-            let status = http.statusCode
+            guard let response else { throw ZError.network("no response") }
+            // file:// (tests, local mirrors) answers with a plain URLResponse: a whole-file 200.
+            let http = response as? HTTPURLResponse
+            let status = http?.statusCode ?? 200
             var start: Int64 = 0
             if status == 206 {
-                guard let range = EmuDownloader.parseContentRange(http.value(forHTTPHeaderField: "Content-Range") ?? ""),
+                guard let range = EmuDownloader.parseContentRange(http?.value(forHTTPHeaderField: "Content-Range") ?? ""),
                       range.start == requestedOffset else {
                     restart = true
                     return
@@ -195,7 +197,7 @@ public enum EmuDownloader {
                 start = requestedOffset
                 expected = range.total
             } else if (200..<300).contains(status) {
-                expected = http.expectedContentLength > 0 ? http.expectedContentLength : nil
+                expected = response.expectedContentLength > 0 ? response.expectedContentLength : nil
             } else {
                 throw ZError.http(status: status, body: HTTPURLResponse.localizedString(forStatusCode: status))
             }
@@ -207,8 +209,8 @@ public enum EmuDownloader {
             handle = h
             length = start
             resumedFrom = start
-            ResumeInfo(url: sourceURL, etag: http.value(forHTTPHeaderField: "ETag"),
-                       lastModified: http.value(forHTTPHeaderField: "Last-Modified"), expectedBytes: expected).save(infoURL)
+            ResumeInfo(url: sourceURL, etag: http?.value(forHTTPHeaderField: "ETag"),
+                       lastModified: http?.value(forHTTPHeaderField: "Last-Modified"), expectedBytes: expected).save(infoURL)
         }
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
@@ -243,7 +245,11 @@ public enum EmuDownloader {
 
         /// A response without body: an empty file, an already complete part (416), or an error.
         private static func emptyBodyOutcome(_ response: URLResponse?, requestedOffset: Int64, partURL: URL) -> Result<Outcome, any Error> {
-            guard let http = response as? HTTPURLResponse else { return .failure(ZError.network("no response")) }
+            guard let response else { return .failure(ZError.network("no response")) }
+            guard let http = response as? HTTPURLResponse else {
+                _ = FileManager.default.createFile(atPath: partURL.path, contents: Data())
+                return .success(.complete)
+            }
             if http.statusCode == 416 {
                 if let range = EmuDownloader.parseContentRange(http.value(forHTTPHeaderField: "Content-Range") ?? ""),
                    let total = range.total, total == requestedOffset {

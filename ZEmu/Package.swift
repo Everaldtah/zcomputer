@@ -28,7 +28,8 @@ let package = Package(
         ),
         .testTarget(
             name: "ZEmuTests",
-            dependencies: ["ZEmu", .product(name: "ZCore", package: "ZKit")]
+            dependencies: ["ZEmu", .product(name: "ZCore", package: "ZKit")],
+            resources: [.copy("Fixtures")]
         ),
     ],
     swiftLanguageModes: [.v6]

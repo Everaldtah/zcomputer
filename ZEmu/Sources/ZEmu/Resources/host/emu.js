@@ -111,7 +111,13 @@
         // ---- lifecycle ----
 
         async cmd_ping() {
-            return { v86: typeof window.V86 === "function", worker: typeof Worker === "function", wasm: typeof WebAssembly === "object" };
+            return {
+                v86: typeof window.V86 === "function",
+                worker: typeof Worker === "function",
+                workerError: window.__zemuWorkerError || null,
+                wasm: typeof WebAssembly === "object",
+                userAgent: navigator.userAgent,
+            };
         },
 
         async cmd_start(cfg) {
