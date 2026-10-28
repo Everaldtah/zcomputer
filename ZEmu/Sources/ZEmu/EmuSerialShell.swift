@@ -33,9 +33,35 @@ public actor EmuSerialShell {
     private let session = String(UInt32.random(in: 0x1000_0000...0xFFFF_FFFF), radix: 36)
     /// Set after a successful `login` / `probe`.
     public private(set) var isReady = false
+    /// One probe / login / command at a time (see `beginOperation`).
+    private var operationRunning = false
+    private var operationWaiters: [CheckedContinuation<Void, Never>] = []
 
     public init(transport: any EmuSerialTransport) {
         self.transport = transport
+    }
+
+    // MARK: One operation at a time
+
+    /// The console is a single line and every operation clears and consumes the shared output buffer, so a probe,
+    /// login or command must never interleave with another one (e.g. the clock sync after a restore with the
+    /// agent's first command). Actor methods are reentrant at `await`, hence this FIFO lock; the public operations
+    /// take it, their `…Locked` bodies call each other without it.
+    private func beginOperation() async {
+        guard operationRunning else {
+            operationRunning = true
+            return
+        }
+        await withCheckedContinuation { operationWaiters.append($0) }
+    }
+
+    /// Hands the lock to the next waiting operation (it stays taken) or frees it.
+    private func endOperation() {
+        if operationWaiters.isEmpty {
+            operationRunning = false
+        } else {
+            operationWaiters.removeFirst().resume()
+        }
     }
 
     /// Starts collecting console output (idempotent).
@@ -133,6 +159,12 @@ public actor EmuSerialShell {
 
     /// Checks whether a shell answers on the console right now.
     public func probe(timeout: TimeInterval = 3) async -> Bool {
+        await beginOperation()
+        defer { endOperation() }
+        return await probeLocked(timeout: timeout)
+    }
+
+    private func probeLocked(timeout: TimeInterval) async -> Bool {
         start()
         let nonce = nextNonce()
         send("\necho \"__Z\"\"R_\(nonce)__\"\n")
@@ -148,6 +180,8 @@ public actor EmuSerialShell {
     /// Logs in on the console's getty (`login:` / `Password:`) unless a shell already answers.
     /// - Throws: when the login is refused or nothing answers before `timeout` (the guest may still be booting).
     public func login(user: String, password: String?, timeout: TimeInterval = 180) async throws {
+        await beginOperation()
+        defer { endOperation() }
         start()
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -167,8 +201,8 @@ public actor EmuSerialShell {
                     throw ZError.vm("serial console: login incorrect for \(user)")
                 }
                 try await Task.sleep(nanoseconds: 700_000_000)
-                if await probe(timeout: 8) { return }
-            } else if await probe(timeout: 3) {
+                if await probeLocked(timeout: 8) { return }
+            } else if await probeLocked(timeout: 3) {
                 return
             }
             try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -180,6 +214,12 @@ public actor EmuSerialShell {
 
     /// Runs a command through the console shell (which must be logged in) and returns its merged output.
     public func run(_ command: String, timeout: TimeInterval = 60) async throws -> ShellResult {
+        await beginOperation()
+        defer { endOperation() }
+        return try await runLocked(command, timeout: timeout)
+    }
+
+    private func runLocked(_ command: String, timeout: TimeInterval) async throws -> ShellResult {
         start()
         let started = Date()
         let nonce = nextNonce()
@@ -214,7 +254,9 @@ public actor EmuSerialShell {
 
     /// Reads a file through the console (base64 over the wire).
     public func readFile(path: String, timeout: TimeInterval = 300) async throws -> Data {
-        let r = try await run("base64 < \(emuShellQuote(path))", timeout: timeout)
+        await beginOperation()
+        defer { endOperation() }
+        let r = try await runLocked("base64 < \(emuShellQuote(path))", timeout: timeout)
         guard r.exitCode == 0 else { throw ZError.vm("serial console: cannot read \(path): \(r.stdout.prefix(300))") }
         guard let data = Data(base64Encoded: r.stdout, options: .ignoreUnknownCharacters) else {
             throw ZError.vm("serial console: invalid base64 while reading \(path)")
@@ -225,6 +267,8 @@ public actor EmuSerialShell {
     /// Writes a file through the console: base64 chunks are appended to a temp file (each acknowledged), then
     /// decoded into place.
     public func writeFile(path: String, data: Data, mode: String? = nil, timeout: TimeInterval = 600) async throws {
+        await beginOperation()
+        defer { endOperation() }
         start()
         let nonce = nextNonce()
         let tmp = "/tmp/.zser_w_\(nonce)"
@@ -239,7 +283,7 @@ public actor EmuSerialShell {
         let q = emuShellQuote(path)
         var finish = "mkdir -p \"$(dirname \(q))\" && base64 -d \(tmp) > \(q) && rm -f \(tmp)"
         if let mode { finish += " && chmod \(emuShellQuote(mode)) \(q)" }
-        let r = try await run(finish, timeout: max(10, timeout - Date().timeIntervalSince(started)))
+        let r = try await runLocked(finish, timeout: max(10, timeout - Date().timeIntervalSince(started)))
         guard r.exitCode == 0 else { throw ZError.vm("serial console: cannot write \(path): \(r.stdout.prefix(300))") }
     }
 

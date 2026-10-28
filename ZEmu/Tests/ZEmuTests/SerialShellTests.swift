@@ -168,6 +168,24 @@ final class SerialShellTests: XCTestCase {
         XCTAssertEqual(console.executed, ["uname -m", "false", long])
     }
 
+    /// Operations started at the same time (the clock sync after a restore and the agent's first command) take
+    /// turns on the one console line instead of clearing each other's output.
+    func testConcurrentOperationsTakeTurns() async throws {
+        let console = FakeShellConsole { command in ("out:\(command)\n", 0) }
+        let shell = EmuSerialShell(transport: console)
+        await shell.start()
+        async let first = shell.run("one", timeout: 5)
+        async let probe = shell.probe(timeout: 5)
+        async let second = shell.run("two", timeout: 5)
+        async let third = shell.run(String(repeating: "x", count: 5000), timeout: 10)
+        let (r1, answered, r2, r3) = try await (first, probe, second, third)
+        XCTAssertEqual(r1.stdout, "out:one\n")
+        XCTAssertTrue(answered)
+        XCTAssertEqual(r2.stdout, "out:two\n")
+        XCTAssertEqual(r3.stdout, "out:" + String(repeating: "x", count: 5000) + "\n")
+        XCTAssertEqual(Set(console.executed), ["one", "two", String(repeating: "x", count: 5000)])
+    }
+
     func testLoginDetectionAtAGetty() async throws {
         let console = FakeShellConsole(requireLogin: true) { _ in ("ok\n", 0) }
         let shell = EmuSerialShell(transport: console)
