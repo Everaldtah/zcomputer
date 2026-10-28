@@ -64,6 +64,9 @@ public struct CursorTracker: Sendable, Hashable {
     /// Records that homing packets were sent.
     public mutating func didHome() { position = PixelPoint(x: 0, y: 0) }
 
+    /// Records a position set by other means (absolute pointer, xdotool).
+    public mutating func assume(_ p: PixelPoint) { position = clamp(p) }
+
     /// Packets that move the cursor to `target` (clamped). Homes first when the position is unknown or `rehome` is
     /// set; returns everything to send, in order, and updates the estimate.
     public mutating func move(to target: PixelPoint, rehome: Bool) -> [MouseDelta] {

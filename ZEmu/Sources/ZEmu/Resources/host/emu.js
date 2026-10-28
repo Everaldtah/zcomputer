@@ -438,6 +438,8 @@
 
         async cmd_fsExists(path) { return this.fs().SearchPath(path).id !== -1; },
 
+        async cmd_fsMkdir(path) { this.ensureDir(path); return true; },
+
         async cmd_fsRead(path) {
             const data = await this.requireEmulator().read_file(path);
             this.pendingFile = data;

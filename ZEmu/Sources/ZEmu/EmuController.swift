@@ -13,9 +13,9 @@ public final class EmuController {
     public let store: EmuStore
     public let host: EmuHost
     /// COM1 (`ttyS0`): output stream with scrollback, and input.
-    public let console: EmuConsole
+    public nonisolated let console: EmuConsole
     /// The serial shell shared by every surface of this machine.
-    let shell: EmuSerialShell
+    nonisolated let shell: EmuSerialShell
 
     public private(set) var state: EmuRunState = .stopped
     public private(set) var screenMode: EmuScreenMode = .text(cols: 80, rows: 25)
@@ -277,7 +277,9 @@ public final class EmuController {
     // MARK: Surface
 
     /// A `ComputerSurface` for agents (and the touch layer). Surfaces of one machine share its serial shell.
-    public func makeSurface() -> EmuSurface { EmuSurface(controller: self) }
+    public func makeSurface() -> EmuSurface {
+        EmuSurface(controller: self, credentials: spec.serialLogin, sensitivity: spec.mouseSensitivity, screen: displaySize)
+    }
 
     // MARK: Launch
 
@@ -538,6 +540,10 @@ public final class EmuController {
         }
         _ = try? await host.call("releaseFile")
         return out
+    }
+
+    func ninePMkdir(path: String) async throws {
+        try await host.call("fsMkdir", [.string(path)])
     }
 
     func ninePDelete(path: String) async throws {
