@@ -71,15 +71,8 @@ public final class EmuSchemeHandler: NSObject, WKURLSchemeHandler {
 
     // MARK: Routing
 
-    enum Route: Equatable {
-        case bundle(String)
-        case file(token: String)
-        case proxy(URL)
-        case notFound
-    }
-
     /// Maps a request URL to a route (pure; tested).
-    nonisolated static func route(for url: URL?) -> Route {
+    nonisolated static func route(for url: URL?) -> EmuRoute {
         guard let url, url.scheme == scheme, url.host == host else { return .notFound }
         let parts = url.path.split(separator: "/").map(String.init)
         guard let first = parts.first else { return .notFound }
@@ -156,16 +149,16 @@ public final class EmuSchemeHandler: NSObject, WKURLSchemeHandler {
         }
         let session = self.session
         let prepared = outgoing
-        let result: ProxyResult
+        let result: EmuProxyResult
         do {
-            result = try await Task.detached(priority: .userInitiated) { () async throws -> ProxyResult in
+            result = try await Task.detached(priority: .userInitiated) { () async throws -> EmuProxyResult in
                 let (data, response) = try await session.data(for: prepared)
                 let http = response as? HTTPURLResponse
                 var headers: [String: String] = [:]
                 for (k, v) in http?.allHeaderFields ?? [:] {
                     if let k = k as? String, let v = v as? String { headers[k] = v }
                 }
-                return ProxyResult(status: http?.statusCode ?? 200, headers: headers, body: data)
+                return EmuProxyResult(status: http?.statusCode ?? 200, headers: headers, body: data)
             }.value
         } catch {
             if let task = active.removeValue(forKey: id) { task.didFailWithError(error) }
@@ -182,12 +175,6 @@ public final class EmuSchemeHandler: NSObject, WKURLSchemeHandler {
         if !result.body.isEmpty { task.didReceive(result.body) }
         active.removeValue(forKey: id)
         task.didFinish()
-    }
-
-    struct ProxyResult: Sendable {
-        var status: Int
-        var headers: [String: String]
-        var body: Data
     }
 
     static let hopByHop: Set<String> = ["host", "connection", "keep-alive", "proxy-connection", "transfer-encoding",
@@ -207,6 +194,21 @@ public final class EmuSchemeHandler: NSObject, WKURLSchemeHandler {
         task.didReceive(response)
         task.didFinish()
     }
+}
+
+/// Where a `zemu://app/...` request goes.
+enum EmuRoute: Equatable, Sendable {
+    case bundle(String)
+    case file(token: String)
+    case proxy(URL)
+    case notFound
+}
+
+/// A proxied HTTP response (CORS proxy of the fetch network backend).
+struct EmuProxyResult: Sendable {
+    var status: Int
+    var headers: [String: String]
+    var body: Data
 }
 
 /// The package's bundled resources.

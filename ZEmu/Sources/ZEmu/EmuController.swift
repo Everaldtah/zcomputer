@@ -424,27 +424,32 @@ public final class EmuController {
         guard let dir = spec.shareDirectory else { return }
         let scoped = dir.startAccessingSecurityScopedResource()
         defer { if scoped { dir.stopAccessingSecurityScopedResource() } }
+        for (relative, url) in Self.shareFiles(in: dir, budget: 256 << 20) {
+            guard state.isActive else { return }
+            if try await ninePExists(path: relative) { continue }
+            try await ninePWrite(path: relative, data: try Data(contentsOf: url))
+        }
+    }
+
+    /// Regular files under `dir` (relative paths starting with "/"), up to `budget` bytes in all.
+    nonisolated static func shareFiles(in dir: URL, budget: Int) -> [(String, URL)] {
         let fm = FileManager.default
         guard let walker = fm.enumerator(at: dir, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
-                                         options: [.skipsHiddenFiles]) else { return }
-        var budget = 256 << 20
+                                         options: [.skipsHiddenFiles]) else { return [] }
+        var remaining = budget
         let base = dir.standardizedFileURL.path
         var files: [(String, URL)] = []
         while let next = walker.nextObject() as? URL {
             let values = try? next.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
             guard values?.isRegularFile == true else { continue }
             let size = values?.fileSize ?? 0
-            guard size <= budget else { continue }
-            budget -= size
+            guard size <= remaining else { continue }
             let path = next.standardizedFileURL.path
             guard path.hasPrefix(base + "/") else { continue }
+            remaining -= size
             files.append((String(path.dropFirst(base.count)), next))
         }
-        for (relative, url) in files {
-            guard state.isActive else { return }
-            if try await ninePExists(path: relative) { continue }
-            try await ninePWrite(path: relative, data: try Data(contentsOf: url))
-        }
+        return files
     }
 
     // MARK: Page commands used by EmuSurface
