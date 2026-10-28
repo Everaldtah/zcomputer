@@ -1,0 +1,8 @@
+*.swift text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+# Vendored v86 build + BIOS images: byte-exact, never line-ending converted (last rule wins).
+Sources/ZEmu/Resources/v86/** -text -diff
+Tests/ZEmuTests/Fixtures/** -text -diff
