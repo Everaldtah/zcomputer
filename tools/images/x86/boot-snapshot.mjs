@@ -11,7 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import {
-    MEMORY_MB, SerialConsole, X_ENV, createEmulator, fmtSec, machineOptions, sleep, started, v86Version, watchHardware,
+    MEMORY_MB, SerialConsole, X_ENV, createEmulator, fmtSec, machineOptions, saveScreen, sleep, started, v86Version, vgaInfo,
+    watchHardware,
 } from "./v86-common.mjs";
 
 const { values: a } = parseArgs({
@@ -132,7 +133,7 @@ async function main() {
     await guest("session (elogind)", "loginctl list-sessions --no-legend 2>&1 | head; echo DISPLAY env of xfce4-session:; sudo cat /proc/$(pgrep -x xfce4-session)/environ | tr '\\0' '\\n' | grep -E '^(DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|XDG_SESSION_TYPE)='");
     await guest("host share", "mount | grep -E ' /mnt/host |9p'; ls -la /mnt/host");
     await guest("network", "ip -4 addr; cat /etc/resolv.conf 2>/dev/null; pgrep -a udhcpc");
-    await guest("top memory users", "ps -o rss,user,comm | sort -n | tail -20");
+    await guest("top memory users", "ps -eo rss,user,comm --sort=rss | tail -20");
     const ping = await guest("zguest ping", "zg ping");
     if (ping.code !== 0) throw new Error(`zguest ping failed:\n${ping.out}`);
     await guest("zguest sysinfo", "zg sysinfo");
@@ -150,6 +151,13 @@ async function main() {
     await sleep(2000);
     await con.sh("stty echo; export PS1='\\u@\\h:\\w\\$ '");
     await sleep(1500);
+    // v86's own display at the moment of the snapshot (the VGA "screen-set-size"
+    // events alone can miss a return to the SVGA mode of the same size).
+    report.vgaAtSave = vgaInfo(emulator);
+    saveScreen(emulator, path.join(a.logs, "v86-screen-boot.png"));
+    if (!report.vgaAtSave?.graphical || !report.vgaAtSave?.svga) {
+        throw new Error(`v86 VGA is not on the SVGA framebuffer at save time: ${JSON.stringify(report.vgaAtSave)}`);
+    }
     const ts = Date.now();
     const state = await emulator.save_state();
     fs.writeFileSync(a.state, Buffer.from(state));

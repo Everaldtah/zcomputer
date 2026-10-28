@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { V86 } from "v86";
+import { encodePng } from "./png.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -59,6 +60,71 @@ export function watchHardware(emulator) {
         hw.vmwareAbsoluteMouse = !!on;
     });
     return hw;
+}
+
+/**
+ * What v86's VGA shows right now. Reads src/vga.js fields of the emulator
+ * (libv86 keeps these property names); null if this v86 build lacks them.
+ */
+export function vgaInfo(emulator) {
+    const vga = emulator.v86?.cpu?.devices?.vga;
+    if (!vga || typeof vga.graphical_mode !== "boolean") return null;
+    return {
+        graphical: vga.graphical_mode,
+        svga: !!vga.svga_enabled,
+        width: vga.svga_width,
+        height: vga.svga_height,
+        bpp: vga.svga_bpp,
+        offsetPx: vga.svga_offset,
+    };
+}
+
+/**
+ * v86's 32-bit SVGA framebuffer as { width, height, rgb } -- the pixels an
+ * app's v86 screen draws (BGRX in video memory) -- or null in other modes.
+ */
+export function captureScreen(emulator) {
+    const info = vgaInfo(emulator);
+    if (!info || !info.graphical || !info.svga || info.bpp !== 32) return null;
+    const vga = emulator.v86.cpu.devices.vga;
+    const mem = new Uint8Array(vga.cpu.wasm_memory.buffer, vga.svga_memory.byteOffset, vga.vga_memory_size);
+    const { width, height } = info;
+    const rgb = Buffer.alloc(width * height * 3);
+    for (let i = 0, s = info.offsetPx * 4; i < width * height && s + 3 < mem.length; i++, s += 4) {
+        rgb[i * 3] = mem[s + 2];
+        rgb[i * 3 + 1] = mem[s + 1];
+        rgb[i * 3 + 2] = mem[s];
+    }
+    return { width, height, rgb };
+}
+
+/** captureScreen() written as a PNG; returns the capture (or null). */
+export function saveScreen(emulator, file) {
+    const shot = captureScreen(emulator);
+    if (shot) fs.writeFileSync(file, encodePng(shot.width, shot.height, shot.rgb));
+    return shot;
+}
+
+/** Share of the pixels of two same-sized RGB captures that match within `tol` per channel. */
+export function sameFraction(a, b, tol = 8) {
+    if (!a || !b || a.width !== b.width || a.height !== b.height) return 0;
+    let same = 0;
+    for (let i = 0; i < a.rgb.length; i += 3) {
+        if (Math.abs(a.rgb[i] - b.rgb[i]) <= tol && Math.abs(a.rgb[i + 1] - b.rgb[i + 1]) <= tol
+            && Math.abs(a.rgb[i + 2] - b.rgb[i + 2]) <= tol) same++;
+    }
+    return same / (a.width * a.height);
+}
+
+/**
+ * Host pointer input the way an app sends it: an absolute position for v86's
+ * VMware backdoor, then a PS/2 click event with the button state. The guest's
+ * vmmouse driver reads the backdoor queue only when a PS/2 mouse interrupt
+ * arrives; the click event is that interrupt (a zero mouse-delta sends none).
+ */
+export function pointerAt(emulator, x, y, { width = 1024, height = 768, buttons = [false, false, false] } = {}) {
+    emulator.bus.send("mouse-absolute", [x, y, width, height]);
+    emulator.bus.send("mouse-click", buttons);
 }
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
