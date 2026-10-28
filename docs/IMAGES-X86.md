@@ -20,19 +20,24 @@ The artifact `z-alpine-desktop-x86` holds four files:
 | `manifest.json` | machine-readable description: sizes, sha256s, the v86 build and machine options a restore must use |
 | `README.md` | the same for people, with this build's smoke-test results |
 
-Build `2026.10.28-148b6c6` (run [40661141488](https://github.com/Everaldtah/zcomputer/actions/runs/40661141488)):
+Build `2026.10.28-ff7c4e5` (run [40662478908](https://github.com/Everaldtah/zcomputer/actions/runs/40662478908),
+smoke test 14/14):
 
 | file | compressed | decompressed | sha256 (compressed file) |
 |---|---|---|---|
-| `z-alpine-desktop-x86.img.xz` | SIZE_IMG | 1 610 612 736 B (1.5 GiB sparse, ~282 MiB used) | `SHA_IMG` |
-| `z-alpine-desktop-x86.state.xz` | SIZE_STATE | SIZE_STATE_RAW | `SHA_STATE` |
+| `z-alpine-desktop-x86.img.xz` | 94 971 696 B (90.6 MiB) | 1 610 612 736 B (1.5 GiB, ~282 MiB used) | `50f18cfdd23c95b4cd71e4b7fd7cf4872de412bc1bf5903e8fbaba68b728215b` |
+| `z-alpine-desktop-x86.state.xz` | 27 667 904 B (26.4 MiB) | 139 774 556 B (133.3 MiB) | `9d63f33c1bd868e438e3dc67a32cae85b6e79de64ab8e611bacdf2582062bdbf` |
+
+The download is ~118 MiB in all. Decompressed sha256s: image
+`d814f9946018674cce6448d3481b685eeb1b4ee7cf8cad8089d74f2d2cb98e47`, state
+`c36691c59644777fb2eafe13a124622fc04d8e043bd7df254a6e4204582b1b27`.
 
 Every build changes the sha256s (timestamps, machine-id, a fresh state); `manifest.json` of the build you publish is
 the authority. Each image entry in it looks like this (abridged):
 
 ```json
 {
-  "version": "2026.10.28-148b6c6", "builtAt": "…", "baseUrl": "https://github.com/Everaldtah/zcomputer/releases/download/images-v1/",
+  "version": "2026.10.28-ff7c4e5", "builtAt": "…", "baseUrl": "https://github.com/Everaldtah/zcomputer/releases/download/images-v1/",
   "images": [{
     "id": "z-alpine-desktop-x86", "name": "Z Alpine Desktop (x86)", "arch": "x86", "format": "raw",
     "diskBytes": 1610612736,
@@ -46,7 +51,7 @@ the authority. Each image entry in it looks like this (abridged):
     "hostShare": {"type": "9p", "mountTag": "host9p", "mountPoint": "/mnt/host"},
     "browser": "netsurf",
     "emulator": {"name": "v86", "npm": "v86@0.5.472", "commit": "cc37f35c…", "bios": {…}, "vgaBios": {…}, "options": {…}},
-    "bootToDesktopSec": 90.6, "bootToSettledSec": 101, "restoreToShellSec": 0.7,
+    "bootToDesktopSec": 169.6, "bootToSettledSec": 185.2, "restoreToShellSec": 0.9,
     "notes": ["…"]
   }]
 }
@@ -176,23 +181,28 @@ const emulator = new V86({
   `bus.send("mouse-click", [left, middle, right])` (the current button state): the guest reads the backdoor queue only
   when a PS/2 mouse interrupt arrives, and v86 raises one for a click event but not for a zero `mouse-delta`. The
   browser `MouseAdapter` sends a non-zero `mouse-delta` with every move, which also works. Wheel: `mouse-wheel`.
+  (Measured by the smoke test: `mouse-absolute` to (700, 500) alone leaves the X pointer where it was; followed by the
+  click event it lands at (699, 499).)
 * **Keyboard.** PS/2: `emulator.keyboard_send_scancodes([...])` with scan code set 1 (press, then `| 0x80` release).
   `keyboard_send_text` needs v86's browser keyboard adapter (`disable_keyboard: false`).
 * **Files.** `/mnt/host` is v86's 9p filesystem (`emulator.create_file` / `read_file` on the host side).
 
 ## Measurements (GitHub Actions `ubuntu-latest`, Node 22, v86 JIT)
 
-| | |
-|---|---|
-| image build (apk.static + chroot + mkfs + extlinux) | ~40 s with a warm apk cache |
-| power-on → ttyS0 login prompt | BOOT_LOGIN s |
-| power-on → `xfce4-session` running | BOOT_SESSION s |
-| **power-on → desktop visible** (Xorg, xfce4-session, xfwm4, xfce4-panel, xfdesktop running; panel + desktop windows mapped) | **BOOT_DESKTOP s** |
-| power-on → desktop idle (guest CPU > 85 % idle twice in a row) | BOOT_SETTLED s |
-| **state restore → serial shell answers** | **RESTORE_SHELL s** |
-| whole workflow | ~WORKFLOW_MIN min |
+Three green runs on 2026-10-28; runner speed varies (the first got a noticeably faster machine: its kernel reached
+the login prompt in 39 s instead of 65 s).
 
-A phone's JIT will differ; the ratio is what matters: a restore is about two orders of magnitude faster than a boot.
+| | [40606277631](https://github.com/Everaldtah/zcomputer/actions/runs/40606277631) | [40661141488](https://github.com/Everaldtah/zcomputer/actions/runs/40661141488) | [40662478908](https://github.com/Everaldtah/zcomputer/actions/runs/40662478908) |
+|---|---|---|---|
+| image build (apk.static + chroot + mkfs + extlinux, warm apk cache) | 40 s | 20 s | 23 s |
+| power-on → ttyS0 login prompt | 38.7 s | 65.9 s | 65.1 s |
+| power-on → `xfce4-session` running | 43.2 s | 72.3 s | 71.9 s |
+| **power-on → desktop visible** (Xorg, xfce4-session, xfwm4, xfce4-panel, xfdesktop running; panel + desktop windows mapped) | **90.6 s** | **173.0 s** | **169.6 s** |
+| power-on → desktop idle (guest CPU > 85 % idle twice in a row) | 101.0 s | 188.6 s | 185.2 s |
+| **state restore → serial shell answers** | **0.7 s** | **1.0 s** | **0.9 s** |
+| whole workflow | 5 min 20 s | 8 min 16 s | 8 min 4 s |
+
+A phone's JIT will differ; the ratio is what matters: a restore is two orders of magnitude faster than a boot.
 Guest memory at the desktop: ~80 MiB used of 488 MiB.
 
 ## How it is built
