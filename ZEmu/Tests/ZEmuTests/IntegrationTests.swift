@@ -124,7 +124,20 @@ final class EmuIntegrationTests: XCTestCase {
             XCTAssertEqual(back, payload, "file round trip")
             let sum = try await surface.shell("sha256sum /tmp/zemu/payload.bin", timeout: 60)
             XCTAssertTrue(sum.stdout.contains(EmuSHA256.hex(of: payload)), sum.stdout)
-            log("file round trip ok")
+            let fileMethod = await surface.lastFileMethod
+            log("file round trip ok (\(fileMethod))")
+
+            // The PS/2 keyboard: log in on the VGA console (tty1) and run a command there by typing.
+            try await surface.typeText("root\n")
+            try await Task.sleep(nanoseconds: 4_000_000_000)
+            try await surface.typeText("echo kbd-$((6*7)) > /tmp/kbd")
+            try await surface.pressKeys("Return")
+            let typed = await waitUntil(30) {
+                let r = try? await surface.shell("cat /tmp/kbd 2>/dev/null", timeout: 20)
+                return r?.stdout.contains("kbd-42") ?? false
+            }
+            log("keyboard (typed on tty1): \(typed)")
+            XCTAssertTrue(typed, "text typed with PS/2 scan codes did not reach the guest's console")
 
             let info = await surface.info
             log("info: shell \(info.shellAvailable) desktop \(info.hasDesktop) — \(info.notes)")

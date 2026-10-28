@@ -38,6 +38,8 @@ public actor EmuSurface: ComputerSurface {
     public private(set) var lastMouseMethod = ""
     /// How the last screenshot was taken ("framebuffer", "text-render").
     public private(set) var lastScreenshotMethod = ""
+    /// How the last file was transferred ("9p", "serial").
+    public private(set) var lastFileMethod = ""
     /// Milliseconds between typed keystrokes.
     public private(set) var typingDelayMs = 8
     /// Milliseconds between relative mouse packets.
@@ -334,11 +336,13 @@ public actor EmuSurface: ComputerSurface {
                 do {
                     let data = try await self.controller.ninePRead(path: name)
                     try? await self.controller.ninePDelete(path: name)
+                    await self.noteFileMethod("9p")
                     return data
                 } catch {
                     try? await self.controller.ninePDelete(path: name)
                 }
             }
+            await self.noteFileMethod("serial")
             return try await self.shellChannel.readFile(path: path)
         }
     }
@@ -362,12 +366,16 @@ public actor EmuSurface: ComputerSurface {
                         "mkdir -p \"$(dirname \(q))\" && cp -- /mnt/host\(name) \(q); s=$?; rm -f /mnt/host\(name); exit $s",
                         timeout: 300)
                     guard r.exitCode == 0 else { throw ZError.vm("cannot write \(path): \(r.stdout.prefix(300))") }
+                    await self.noteFileMethod("9p")
                     return
                 }
             }
+            await self.noteFileMethod("serial")
             try await self.shellChannel.writeFile(path: path, data: data)
         }
     }
+
+    private func noteFileMethod(_ method: String) { lastFileMethod = method }
 
     /// Runs `body` with the serial shell to itself (the agent may call tools concurrently; the console is one line).
     private func exclusive<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
