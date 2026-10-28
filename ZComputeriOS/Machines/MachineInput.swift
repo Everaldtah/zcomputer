@@ -3,19 +3,47 @@ import Foundation
 import Observation
 import ZCore
 
-/// One user input for the machine, in guest pixels.
+/// A position on the machine's screen as a fraction of its width and height (0...1).
+struct ScreenFraction: Sendable, Hashable {
+    var x: Double
+    var y: Double
+
+    init(_ point: CGPoint) {
+        x = Double(point.x)
+        y = Double(point.y)
+    }
+
+    /// The guest pixel under this position on a display of `size`.
+    func pixel(in size: PixelSize) -> (x: Int, y: Int) {
+        let px = (min(max(x, 0), 1) * Double(max(size.width - 1, 0))).rounded()
+        let py = (min(max(y, 0), 1) * Double(max(size.height - 1, 0))).rounded()
+        return (Int(px), Int(py))
+    }
+}
+
+/// One user input for the machine. Pointer positions are screen fractions, turned into guest pixels with the
+/// display size current when the input is sent (the guest may switch video modes, e.g. text console → desktop).
 enum MachineInputAction: Sendable {
-    case click(x: Int, y: Int, button: MouseButton)
-    case move(x: Int, y: Int)
-    case down(x: Int, y: Int)
-    case up(x: Int, y: Int)
-    case scroll(x: Int, y: Int, dx: Int, dy: Int)
+    case click(ScreenFraction, button: MouseButton)
+    case move(ScreenFraction)
+    case down(ScreenFraction)
+    case up(ScreenFraction)
+    case scroll(ScreenFraction, dx: Int, dy: Int)
     case text(String)
     case keys(String)
+
+    var isPointer: Bool {
+        switch self {
+        case .click, .move, .down, .up, .scroll: return true
+        case .text, .keys: return false
+        }
+    }
 }
 
 /// Turns touches and the on-screen keyboard into `ComputerSurface` calls, in order (a drag's down / moves / up must
-/// not overtake each other), with one-shot Ctrl / Alt modifiers from the key row.
+/// not overtake each other), with one-shot Ctrl / Alt modifiers from the key row. For an emulated machine the
+/// surface is ZEmu's `EmuSurface`: pointer positions reach v86 as VMware absolute coordinates when the guest uses
+/// that pointer (Z Alpine Desktop does), else as relative PS/2 movements; nothing here talks to the page directly.
 @Observable
 @MainActor
 final class MachineInput {
@@ -25,21 +53,24 @@ final class MachineInput {
 
     @ObservationIgnored private var continuation: AsyncStream<MachineInputAction>.Continuation?
     @ObservationIgnored private var worker: Task<Void, Never>?
-    @ObservationIgnored private(set) var displaySize = PixelSize(width: 1024, height: 768)
 
     /// Starts sending to `surface` (nil: inputs are dropped, e.g. while the machine is off).
     func attach(_ surface: (any ComputerSurface)?) {
         worker?.cancel()
         continuation?.finish()
+        continuation = nil
         guard let surface else { return }
         let (stream, continuation) = AsyncStream<MachineInputAction>.makeStream(bufferingPolicy: .bufferingNewest(256))
         self.continuation = continuation
         worker = Task { [weak self] in
-            let size = await surface.displaySize
-            if size.width > 1, size.height > 1 { self?.displaySize = size }
+            var size = PixelSize(width: 1024, height: 768)
             for await action in stream {
+                if action.isPointer {
+                    let current = await surface.displaySize
+                    if current.width > 1, current.height > 1 { size = current }
+                }
                 do {
-                    try await Self.perform(action, on: surface)
+                    try await Self.perform(action, size: size, on: surface)
                 } catch {
                     self?.lastError = Format.describe(error)
                 }
@@ -54,13 +85,23 @@ final class MachineInput {
         continuation = nil
     }
 
-    private static func perform(_ action: MachineInputAction, on surface: any ComputerSurface) async throws {
+    private static func perform(_ action: MachineInputAction, size: PixelSize, on surface: any ComputerSurface) async throws {
         switch action {
-        case .click(let x, let y, let button): try await surface.click(x: x, y: y, button: button, count: 1)
-        case .move(let x, let y): try await surface.mouseMove(x: x, y: y)
-        case .down(let x, let y): try await surface.mouseDown(x: x, y: y, button: .left)
-        case .up(let x, let y): try await surface.mouseUp(x: x, y: y, button: .left)
-        case .scroll(let x, let y, let dx, let dy): try await surface.scroll(x: x, y: y, dx: dx, dy: dy)
+        case .click(let at, let button):
+            let p = at.pixel(in: size)
+            try await surface.click(x: p.x, y: p.y, button: button, count: 1)
+        case .move(let at):
+            let p = at.pixel(in: size)
+            try await surface.mouseMove(x: p.x, y: p.y)
+        case .down(let at):
+            let p = at.pixel(in: size)
+            try await surface.mouseDown(x: p.x, y: p.y, button: .left)
+        case .up(let at):
+            let p = at.pixel(in: size)
+            try await surface.mouseUp(x: p.x, y: p.y, button: .left)
+        case .scroll(let at, let dx, let dy):
+            let p = at.pixel(in: size)
+            try await surface.scroll(x: p.x, y: p.y, dx: dx, dy: dy)
         case .text(let text): try await surface.typeText(text)
         case .keys(let combo): try await surface.pressKeys(combo)
         }
@@ -69,37 +110,26 @@ final class MachineInput {
     // MARK: Pointer (positions are fractions of the screen, 0...1)
 
     func tap(at point: CGPoint, button: MouseButton = .left) {
-        let (x, y) = pixel(point)
-        send(.click(x: x, y: y, button: button))
+        send(.click(ScreenFraction(point), button: button))
     }
 
     func dragBegan(at point: CGPoint) {
-        let (x, y) = pixel(point)
-        send(.move(x: x, y: y))
-        send(.down(x: x, y: y))
+        send(.move(ScreenFraction(point)))
+        send(.down(ScreenFraction(point)))
     }
 
     func dragMoved(to point: CGPoint) {
-        let (x, y) = pixel(point)
-        send(.move(x: x, y: y))
+        send(.move(ScreenFraction(point)))
     }
 
     func dragEnded(at point: CGPoint) {
-        let (x, y) = pixel(point)
-        send(.up(x: x, y: y))
+        send(.up(ScreenFraction(point)))
     }
 
     /// Wheel ticks at a point; positive `dy` scrolls down.
     func scroll(at point: CGPoint, dx: Int, dy: Int) {
         guard dx != 0 || dy != 0 else { return }
-        let (x, y) = pixel(point)
-        send(.scroll(x: x, y: y, dx: dx, dy: dy))
-    }
-
-    private func pixel(_ point: CGPoint) -> (Int, Int) {
-        let x = Int((min(max(point.x, 0), 1) * CGFloat(displaySize.width - 1)).rounded())
-        let y = Int((min(max(point.y, 0), 1) * CGFloat(displaySize.height - 1)).rounded())
-        return (x, y)
+        send(.scroll(ScreenFraction(point), dx: dx, dy: dy))
     }
 
     // MARK: Keyboard

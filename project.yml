@@ -40,6 +40,9 @@ packages:
   # Virtualization.framework layer (macOS only).
   ZVM:
     path: ZVM
+  # x86 PCs emulated by v86 in a WKWebView (iOS 17+ / macOS 15+): the iPhone/iPad app's machines. docs/EMU.md.
+  ZEmu:
+    path: ZEmu
   # Terminal emulator view. 1.99.x declares swift-tools-version 6.2 (Xcode 26+) and ships a build-tool plugin,
   # so xcodebuild needs -skipPackagePluginValidation.
   SwiftTerm:
@@ -156,6 +159,8 @@ targets:
         products: [ZCore, ZProviders, ZAgent, ZMemory, ZTeam, ZLocal]
       - package: SwiftTerm
         product: SwiftTerm
+      - package: ZEmu
+        product: ZEmu
     entitlements:
       # Committed as-is; no `properties` so XcodeGen never rewrites it.
       path: ZComputeriOS/ZComputeriOS.entitlements

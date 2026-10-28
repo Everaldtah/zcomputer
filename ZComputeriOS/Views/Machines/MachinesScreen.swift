@@ -100,7 +100,12 @@ struct MachinesScreen: View {
         let machines = model.machines
         let state = machines.state(machine.id)
         if state.isActive {
-            Button { machines.stop(machine.id) } label: { Label("Power off", systemImage: "power") }
+            Button { machines.stop(machine.id, saveState: true) } label: {
+                Label("Save and power off", systemImage: "power")
+            }
+            Button(role: .destructive) { machines.stop(machine.id, saveState: false) } label: {
+                Label("Power off without saving", systemImage: "power")
+            }
             Button { machines.saveState(machine.id) } label: { Label("Save state", systemImage: "square.and.arrow.down") }
         } else {
             Button { machines.start(machine.id) } label: { Label("Start", systemImage: "power") }

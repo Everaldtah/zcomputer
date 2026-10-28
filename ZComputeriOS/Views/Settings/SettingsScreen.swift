@@ -3,9 +3,10 @@ import ZAgent
 import ZCore
 import ZLocal
 
-/// Settings: Providers, Local models, Agent policy, About.
+/// Settings: Providers, Local models, Agent policy, About, and the machines' (experimental) guest network.
 struct SettingsScreen: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(MachineSettings.guestNetworkKey) private var guestNetwork = false
 
     var body: some View {
         NavigationStack {
@@ -35,6 +36,17 @@ struct SettingsScreen: View {
                 Section("Agent model") {
                     Text(AgentSettings.modelRef().map { model.displayName(for: $0) } ?? "None chosen yet")
                         .foregroundStyle(.secondary)
+                }
+                Section {
+                    Toggle(isOn: $guestNetwork) {
+                        Label("Guest network (experimental)", systemImage: "network")
+                    }
+                } header: {
+                    Text("Machines")
+                } footer: {
+                    Text("Lets emulated machines reach plain-HTTP (port 80) sites through the app, e.g. Alpine's "
+                         + "package mirrors: DHCP and DNS are emulated, there is no HTTPS and no other port. Off by "
+                         + "default. Takes effect the next time a machine starts.")
                 }
             }
             .navigationTitle("Settings")

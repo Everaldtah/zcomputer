@@ -99,8 +99,10 @@ struct MachineScreen: View {
         case .machine(let id):
             let state = machines.state(id)
             if state.isActive, let runtime = machines.existingRuntime(for: id) {
+                // The size follows the guest's video mode (MachinesModel watches the runtime).
+                let size = machines.screenSize(id)
                 MachineScreenHost(screen: runtime.screenView,
-                                  guestSize: CGSize(width: runtime.screenSize.width, height: runtime.screenSize.height),
+                                  guestSize: CGSize(width: size.width, height: size.height),
                                   input: controller.input, parking: machines.parking)
             } else {
                 MachineOffView(id: id, state: state)
@@ -241,7 +243,7 @@ private struct KeyRow: View {
     }
 }
 
-/// Start / Stop, Pause / Resume, Save state.
+/// Start / Power off (save or discard), Pause / Resume, Save state.
 private struct MachineControls: View {
     @Environment(AppModel.self) private var model
     let id: UUID
@@ -251,7 +253,17 @@ private struct MachineControls: View {
         let state = machines.state(id)
         HStack(spacing: 18) {
             if state.isActive {
-                Button(role: .destructive) { machines.stop(id) } label: { Label("Power off", systemImage: "power") }
+                Menu {
+                    Button { machines.stop(id, saveState: true) } label: {
+                        Label("Save and power off", systemImage: "square.and.arrow.down")
+                    }
+                    Button(role: .destructive) { machines.stop(id, saveState: false) } label: {
+                        Label("Power off without saving", systemImage: "power")
+                    }
+                } label: {
+                    Label("Power off", systemImage: "power")
+                }
+                .disabled(state == .starting)
                 if state == .paused {
                     Button { machines.resume(id) } label: { Label("Resume", systemImage: "play.fill") }
                 } else {
@@ -282,6 +294,11 @@ private struct MachineOffView: View {
         VStack(spacing: 12) {
             Image(systemName: "desktopcomputer").font(.system(size: 44)).foregroundStyle(.secondary)
             Text(state == .starting ? "Starting…" : "The machine is off").font(.headline)
+            if state != .starting, let summary = model.machines.summary(id) {
+                Text(summary.hasSavedState ? "Start resumes where it was saved." : "Start boots \(summary.bootDescription).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if let error = model.machines.errors[id] {
                 Text(error).font(.callout).foregroundStyle(.orange).multilineTextAlignment(.center).padding(.horizontal)
             }
