@@ -1,0 +1,7 @@
+af_packet
+psmouse
+evdev
+bochs
+virtio_net
+9pnet_virtio
+9p

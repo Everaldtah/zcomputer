@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+# Z Computer guest agent (guest-agent/ in the zcomputer repo). v86 has no
+# virtio-vsock, so the agent listens on TCP; the address is in /etc/conf.d/zguest.
+
+name="zguest"
+description="Z Computer guest agent"
+: "${ZGUEST_LISTEN:=127.0.0.1:5555}"
+command=/usr/local/bin/zguest
+command_args="--tcp ${ZGUEST_LISTEN}"
+supervisor=supervise-daemon
+respawn_delay=2
+respawn_max=0
+output_log=/var/log/zguest.log
+error_log=/var/log/zguest.log
+
+depend() {
+	need localmount
+	after networking zshare
+}
+
+start_pre() {
+	# 127.0.0.1 needs lo up even when eth0 has no DHCP server yet.
+	ip link set lo up 2>/dev/null || true
+	checkpath -f -m 0640 -o root:root /var/log/zguest.log
+}

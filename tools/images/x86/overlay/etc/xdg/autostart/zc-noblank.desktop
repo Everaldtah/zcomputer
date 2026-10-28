@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Z Computer: keep the screen on
+Comment=No X screensaver, no DPMS blanking (screenshots must always show the desktop)
+Exec=xset s off s noblank -dpms
+NoDisplay=true
+X-XFCE-Autostart-Override=true

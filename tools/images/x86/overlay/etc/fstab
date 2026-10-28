@@ -1,0 +1,6 @@
+# <fs>     <mountpoint>  <type>  <options>                                  <dump> <pass>
+/dev/sda1  /             ext4    rw,noatime                                 0      1
+tmpfs      /tmp          tmpfs   nosuid,nodev,mode=1777,size=128m           0      0
+# v86's virtio 9p share has the mount tag "host9p". /etc/init.d/zshare mounts it
+# when the emulator provides one (noauto: a missing share must not fail localmount).
+host9p     /mnt/host     9p      trans=virtio,version=9p2000.L,nofail,noauto 0     0
