@@ -54,7 +54,8 @@ xcodebuild build -project ZComputer.xcodeproj -scheme ZComputer -destination 'ge
 
 | Screen | App files | Engine |
 |---|---|---|
-| Machines | `Machines/MachinesModel.swift`, `Views/Machines/*` | ZVM: `VMStore.standard()`, `VMController` (start/stop/pause, `displayHost.makeUserView()`), `ImageCatalog.forHost` + `ImagePreparer.prepare` + `CloudInitConfig` (ready-to-run Linux), ISO install with `ISOInspector` warnings, `MacOSInstaller` (Apple silicon), `provisionGuestAgent`, `makeSurface(credentials:)` |
+| Machines | `Machines/MachinesModel.swift`, `Views/Machines/*` | ZVM: `VMStore.standard()`, `VMController` (start/stop/pause, `displayHost.makeUserView()`), ISO install with `ISOInspector` warnings, `MacOSInstaller` (Apple silicon), `provisionGuestAgent`, `makeSurface(credentials:)` |
+| Machines ▸ Library | `Machines/ImageLibraryModel.swift`, `Views/Machines/ImageLibraryView.swift`, `TemplateCard.swift`, `ProvisioningPanel.swift`, `Views/Agent/AgentOnboardingCard.swift` | ZVM: `ImageCatalog` (bundled `images.json`), `MachineTemplate` + `HostProfile` (`fits(host:)`), `ImagePreparer.download`/`prepare`, `ImageCache`, `CloudInitConfig.forImage` with `DesktopPreset`/`DevPreset`, `ProvisionStatus` read through `GuestAgentClient.readFile` |
 | Agent | `Agent/AgentSession.swift`, `Views/Agent/*` | ZAgent `AgentRunner` (id `main`) on the chosen machine (`VMSurface`, or the `MockComputerSurface` "Demo machine"); events from the shared ZCore `EventBus` feed the transcript and the Activity panel; approvals via `AgentRunner.approve`, `ask_user` answered through the composer (`send(userMessage:)`) |
 | Team | `Team/TeamModel.swift`, `Views/Team/TeamView.swift` | ZTeam `TeamRunner` (one per goal), `TeamSpec` persisted as `team.json` in Application Support, board from `teamEvents()`, member lanes from the shared bus, approvals via `approve(id:decision:memberID:)` |
 | Library | `Library/LibraryModel.swift`, `Views/Library/*` | ZMemory `SQLiteMemoryStore` at `Application Support/ZComputer/Library/library.sqlite` with `NLEmbedder` (hashing fallback); PDF text via PDFKit (`Platform/DocumentTextExtractor.swift`) |
@@ -70,6 +71,61 @@ MLXVLM for vision models, native tool calls through the chat template or ZAgent'
 
 `Platform/` holds the Apple-only implementations of ZKit contracts: `KeychainKeyStore: KeyStore` (service
 `com.everaldtah.zcomputer`), `CoreGraphicsImageResizer: ImageResizer` (resize + crop for the computer tool's zoom).
+
+## Image Library (Machines ▸ Library)
+
+Multi-GB images cannot ship in the app bundle, so the app downloads them on demand. The catalogue is
+`ZVM/Sources/ZVM/Resources/images.json`: the 71 entries of [research/images.md](research/images.md) (33 cloud images,
+38 installer ISOs; URLs, sizes and checksums verified 2026-10-27), plus two fields the app adds: `experimental` (the
+arm64 NixOS, Rocky 10 and Pop!_OS ISOs, which have no partition table) and `intelMinMacOS` (kernel 6.12+ images that need
+macOS 15.5 on Intel Macs, or the `nopku` kernel argument, lima#3334).
+
+**First launch.** The Agent view shows "Get a machine for your agents" while no VM exists: *Open the Image Library*,
+*Get Agent Desktop (Debian 13 + XFCE)* in one click, or *Keep using the Demo machine* (it stays in the machine picker).
+The Machines screen has a Machines | Library switch in the toolbar.
+
+**Templates** (`MachineTemplate.all`, recommended first; sizes are arm64 / x86_64 downloads):
+
+| Template | Image | Download | Then |
+|---|---|---|---|
+| Agent Desktop (Debian 13 + XFCE), **Recommended** | Debian 13 generic qcow2 | 432 / 439 MB | Xfce/X11 + LightDM auto-login, ≈ 200 MB of packages, ≈ 3–5 min (estimate) |
+| Agent Desktop (Ubuntu 24.04 + XFCE) | Ubuntu 24.04 server | 617 / 621 MB | same desktop, Firefox from Mozilla's APT repo; kernel 6.8 (fine on Intel before macOS 15.5) |
+| Terminal / Dev (Ubuntu 24.04 server) | Ubuntu 24.04 server | 617 / 621 MB | git, build-essential, Python 3, Node.js + npm, tmux, ripgrep |
+| Smallest (Ubuntu 24.04 minimal) | Ubuntu 24.04 minimal | 224 / 260 MB | terminal only, ready ≈ 30–60 s after power-on |
+| Kali Linux (installer ISO) | Kali 2026.3 installer | 4.05 / 5.05 GB | manual install |
+| Fedora Xfce spin (ISO) | Fedora 44 Xfce live | 2.67 / 2.93 GB | live desktop, install from there |
+| Ubuntu Desktop 24.04 (installer ISO) | Ubuntu 24.04.5 desktop | 3.97 / 6.25 GB | manual install; GNOME/Wayland by default (pick "Ubuntu on Xorg") |
+| macOS (Apple silicon) | Apple's latest restore image | from Apple | `MacOSInstaller`, then Setup Assistant |
+
+`fits(host:)` blocks a template when the architecture has no build (or macOS on Intel), when memory is below the
+template's minimum + 2 GB, or when free disk is below download + 4 GB; it warns when memory is lowered, when the sparse
+disk could outgrow the free space, for Wayland desktops, experimental ISOs, Alpine ("advanced": OpenRC) and the Intel
+`nopku` case. `VZEFIBootLoader` takes no kernel command line and the seed runs after the kernel is up, so `nopku` is a
+warning (with "use the Ubuntu 24.04 template" as the way out), not something the app can apply.
+
+**Get & Boot** (`ImageLibraryModel.getAndBoot`), cloud templates:
+
+1. The VM is created in the store (user `z`, a random password kept in the Keychain, shown under Guest login) and
+   selected; its page shows the provisioning panel.
+2. Download into `Application Support/ZComputer/Images` (shared between machines, resumable: Pause cancels the request
+   and keeps `<file>.part`; Resume continues with `Range` + `If-Range`). Progress, speed and time left show on the card,
+   the panel and the machine's job bar.
+3. Checksum: the distribution's sums file is fetched at download time and parsed in its style (GNU, BSD inside a PGP
+   clear-signed file, bare hash, Pop!_OS JSON, openSUSE `-Current` → `-Snapshot…-Media`); when it cannot be read or
+   does not list the file, the value from `images.json` is used. The source is shown ("SHA-512 from SHA512SUMS"). A
+   mismatch deletes the file.
+4. Disk: qcow2 → sparse raw `disk.img` (`QCOW2.convertToRaw`), grown to the template's size; the NoCloud seed is written.
+5. Boot, then the app polls the guest agent every 3 s: ping (agent online), then `read_file
+   /var/lib/zguest/provision.status`. The seed's `runcmd` runs `zguest-install` first and then each preset step through
+   `/usr/local/sbin/zc-provision` (`step/total/stage/state/label`), so the panel shows "Installing the Xfce desktop (X11)
+   (2/3)" while the agent is already reachable. The guest log is `/var/log/zcomputer-provision.log`.
+6. `state=done` → **Ready for agents**: the machine becomes the Agent view's target (`setAgentChoice(.vm(id))`).
+
+Installer templates download and verify the ISO, create the VM with the ISO attached and boot the installer; the
+panel shows the research notes (Wayland, experimental). Every catalogue image is also listed under "All images for this
+Mac": cloud images open New Machine ▸ Ready-to-run Linux with that image (desktop / developer-tools toggles, the same
+presets), ISOs open New Machine ▸ Install from ISO with the catalogue ISO selected. "Downloaded images" lists the cache
+(verified, partial) with Resume and Delete; deleting an image does not affect machines made from it.
 
 ## App Review safeguards
 
@@ -88,4 +144,8 @@ MLXVLM for vision models, native tool calls through the chat template or ZAgent'
 * `ModelDownloader` uses a default `URLSessionConfiguration`; a background configuration works with the same delegate
   but needs relaunch handling (`handleEventsForBackgroundURLSession`) before it is useful.
 * MLX: the loaded model stays in `MLXModelCache` until another model is used; memory limits are not tuned yet.
-* Not verified on hardware: VM display capture and input (ZVM risks list), MLX generation, Apple on-device model.
+* Not verified on hardware: VM display capture and input (ZVM risks list), MLX generation, Apple on-device model, and
+  the Image Library's first boots (the desktop recipes come from package indexes, not from a booted VM; the
+  first-boot times are the research's estimates).
+* Provisioning progress is followed while the app runs; after a relaunch the panel is gone (the guest keeps
+  provisioning, and the status file stays in `/var/lib/zguest/provision.status`).

@@ -17,7 +17,9 @@ let package = Package(
     targets: [
         .target(
             name: "ZVM",
-            dependencies: [.product(name: "ZCore", package: "ZKit")]
+            dependencies: [.product(name: "ZCore", package: "ZKit")],
+            // images.json: the curated image catalogue (docs/research/images.md), loaded through Bundle.module.
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "ZVMTests",

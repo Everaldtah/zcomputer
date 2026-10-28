@@ -39,6 +39,26 @@ struct MachineJob: Hashable {
     var detail: String
 }
 
+/// The two halves of the Machines screen.
+enum MachinesTab: Hashable {
+    case machines
+    case library
+}
+
+/// Opens the New Machine sheet, optionally preset to a catalogue image.
+struct CreateMachineRequest: Identifiable, Hashable {
+    enum Start: Hashable {
+        case blank
+        /// "Ready-to-run Linux" with this cloud image selected.
+        case cloudImage(String)
+        /// "Install from ISO" with this catalogue ISO (downloaded into the image cache).
+        case catalogISO(String)
+    }
+
+    let id = UUID()
+    var start: Start
+}
+
 /// The Machines screen: VMs from ZVM's `VMStore`, their `VMController`s (built on demand), the Demo machine, and the
 /// surface the Agent view drives.
 @Observable
@@ -57,6 +77,10 @@ final class MachinesModel {
     private(set) var listError: String?
     private(set) var agentChoice: AgentMachineChoice
     var selection: MachineID? = .demo
+    /// Machines list or Image Library.
+    var tab: MachinesTab = .machines
+    /// The New Machine sheet (nil = closed).
+    var createRequest: CreateMachineRequest? = nil
     /// Bumped when a VM's display view should be rebuilt (new VZVirtualMachine).
     private(set) var displayGeneration = 0
 
@@ -133,14 +157,20 @@ final class MachinesModel {
         errors[id] = nil
         Task {
             do {
-                let controller = try self.controller(for: id)
-                try controller.buildVirtualMachine()
-                displayGeneration += 1
-                try await controller.start()
+                try await startNow(id)
             } catch {
                 errors[id] = Format.describe(error)
             }
         }
+    }
+
+    /// Builds and starts the VM, returning once it runs (or throwing).
+    func startNow(_ id: UUID) async throws {
+        errors[id] = nil
+        let controller = try self.controller(for: id)
+        try controller.buildVirtualMachine()
+        displayGeneration += 1
+        try await controller.start()
     }
 
     func stop(_ id: UUID, force: Bool) {
@@ -215,6 +245,20 @@ final class MachinesModel {
     }
 
     func dismissError(_ id: UUID) { errors[id] = nil }
+
+    // Used by the Image Library, which runs its own jobs on the machines it creates.
+    func setJob(_ job: MachineJob?, for id: UUID) { jobs[id] = job }
+    func setError(_ message: String?, for id: UUID) { errors[id] = message }
+    func setJobTask(_ task: Task<Void, Never>?, for id: UUID) { jobTasks[id] = task }
+
+    /// `base`, or `base 2`, `base 3`, ... when a VM already has that name.
+    func uniqueName(_ base: String) -> String {
+        let names = Set(specs.map(\.name))
+        guard names.contains(base) else { return base }
+        var n = 2
+        while names.contains("\(base) \(n)") { n += 1 }
+        return "\(base) \(n)"
+    }
 
     // MARK: Agent surface
 
@@ -300,47 +344,16 @@ final class MachinesModel {
         spec.installBookmark = try Self.bookmark(for: iso, readOnly: true)
         spec.attachInstallMedia = true
         _ = try store.create(spec, createDisk: true)
-        finishCreate(spec.id)
+        didCreate(spec.id)
     }
 
-    /// "Ready-to-run Linux": download a cloud image, convert it into disk.img and write a cloud-init seed with the
-    /// user's login (and the zguest agent install).
-    func createFromCloudImage(_ draft: MachineDraft, image: CloudImage, user: String, password: String,
-                              desktop: Bool) throws {
-        guard let store else { throw ZError.vm(storeError ?? "no VM store") }
-        var spec = draft.makeSpec(guest: .linux)
-        spec.install = .diskImage(image.url)
-        spec.attachInstallMedia = false
-        spec.notes = "From \(image.name). Login: \(user)."
-        let bundle = try store.create(spec, createDisk: false)
-        let id = spec.id
-        setCredentials(VMSurface.Credentials(user: user, password: password), for: id)
-        let cloudInit = CloudInitConfig(hostname: Self.hostname(for: draft.name), user: user, password: password,
-                                        packages: desktop ? CloudInitConfig.desktopPackages : [],
-                                        agentBinaryName: "zguest-linux-\(GuestArchitecture.host.debianName)")
-        finishCreate(id)
-        jobs[id] = MachineJob(title: "Preparing \(image.name)", fraction: 0, detail: "starting download")
-        let finalSpec = spec
-        let model = self   // the model lives as long as the app
-        jobTasks[id] = Task {
-            do {
-                let cache = try ImagePreparer.defaultCacheDirectory()
-                try await ImagePreparer.prepare(image, spec: finalSpec, bundle: bundle, cacheDirectory: cache,
-                                                cloudInit: cloudInit) { phase in
-                    Task { @MainActor in model.report(phase, for: id) }
-                }
-                model.jobs[id] = nil
-            } catch {
-                model.jobs[id] = nil
-                model.errors[id] = error is CancellationError ? "Preparation cancelled." : Format.describe(error)
-            }
-            model.jobTasks[id] = nil
-        }
-    }
+    // "Ready-to-run Linux" (cloud images) lives in ImageLibraryModel.createCloudMachine: it shares the image
+    // downloads with the Library and follows first-boot provisioning.
 
     #if arch(arm64)
     /// macOS guest: download (or use the picked) restore image, prepare the bundle and run `VZMacOSInstaller`.
-    func createMacOS(_ draft: MachineDraft, restoreImage: URL?) throws {
+    @discardableResult
+    func createMacOS(_ draft: MachineDraft, restoreImage: URL?) throws -> UUID {
         guard let store else { throw ZError.vm(storeError ?? "no VM store") }
         var spec = draft.makeSpec(guest: .macOS)
         spec.install = .macOSRestoreImage(restoreImage)
@@ -348,7 +361,7 @@ final class MachinesModel {
         let bundle = try store.create(spec, createDisk: false)
         let id = spec.id
         let initialSpec = spec
-        finishCreate(id)
+        didCreate(id)
         jobs[id] = MachineJob(title: "Preparing macOS", fraction: nil, detail: "looking up the restore image")
         let model = self   // the model lives as long as the app
         jobTasks[id] = Task {
@@ -395,6 +408,7 @@ final class MachinesModel {
             }
             model.jobTasks[id] = nil
         }
+        return id
     }
     #endif
 
@@ -416,39 +430,26 @@ final class MachinesModel {
         return try FileBookmark.make(for: url, securityScoped: true, readOnly: readOnly)
     }
 
-    private func finishCreate(_ id: UUID) {
+    /// Shows a VM that was just created.
+    func didCreate(_ id: UUID) {
         reload()
         selection = .vm(id)
+        tab = .machines
     }
 
-    private func report(_ phase: ImagePreparationPhase, for id: UUID) {
-        guard var job = jobs[id] else { return }
-        switch phase {
-        case .downloading(let progress):
-            job.fraction = progress.fractionCompleted
-            job.detail = "Downloading: \(Format.bytes(progress.receivedBytes))"
-                + (progress.expectedBytes.map { " of \(Format.bytes($0))" } ?? "")
-        case .verifying:
-            job.fraction = nil
-            job.detail = "Verifying the checksum"
-        case .converting(let fraction):
-            job.fraction = fraction
-            job.detail = "Converting to a raw disk"
-        case .resizing:
-            job.detail = "Growing the disk"
-        case .writingSeed:
-            job.detail = "Writing the cloud-init seed"
-        case .finished:
-            job.fraction = 1
-            job.detail = "Ready"
+    /// A DNS-safe guest hostname from a VM name ("Agent Desktop (Debian 13 + XFCE)" → "agent-desktop-debian-13-xfce").
+    static func hostname(for name: String) -> String {
+        var host = ""
+        for character in name.lowercased() {
+            if character.isASCII && (character.isLetter || character.isNumber) {
+                host.append(character)
+            } else if !host.isEmpty && !host.hasSuffix("-") {
+                host.append("-")
+            }
         }
-        jobs[id] = job
-    }
-
-    private static func hostname(for name: String) -> String {
-        let allowed = name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }
-        let host = String(allowed).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return host.isEmpty ? "zcomputer" : String(host.prefix(40))
+        var trimmed = String(host.prefix(40))
+        while trimmed.hasSuffix("-") { trimmed.removeLast() }
+        return trimmed.isEmpty ? "zcomputer" : trimmed
     }
 }
 

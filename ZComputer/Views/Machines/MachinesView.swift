@@ -2,10 +2,40 @@ import SwiftUI
 import ZCore
 import ZVM
 
-/// VM list (plus the Demo machine) and the selected machine's screen and controls.
+/// Two tabs: the VM list (plus the Demo machine) with the selected machine's screen and controls, and the Image
+/// Library (curated images, one-click machines).
 struct MachinesView: View {
     @Environment(AppModel.self) private var model
-    @State private var creating = false
+
+    var body: some View {
+        @Bindable var machines = model.machines
+        Group {
+            switch machines.tab {
+            case .machines: MachineListSplit()
+            case .library: ImageLibraryView()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("View", selection: $machines.tab) {
+                    Text("Machines").tag(MachinesTab.machines)
+                    Text("Library").tag(MachinesTab.library)
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .help("Your machines, or the Image Library of ready-to-run Linux images")
+            }
+        }
+        .sheet(item: $machines.createRequest) { request in
+            CreateMachineSheet(request: request)
+        }
+        .navigationTitle("Machines")
+        .onAppear { model.machines.reload() }
+    }
+}
+
+private struct MachineListSplit: View {
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var machines = model.machines
@@ -29,18 +59,28 @@ struct MachinesView: View {
                         if machines.specs.isEmpty {
                             Text(machines.isSupported ? "No VMs yet" : "This Mac cannot run virtual machines")
                                 .foregroundStyle(.secondary)
+                            if machines.isSupported {
+                                Button("Get one from the Image Library") { machines.tab = .library }
+                                    .buttonStyle(.link)
+                            }
                         }
                     }
                 }
                 Divider()
                 HStack {
                     Button {
-                        creating = true
+                        machines.createRequest = CreateMachineRequest(start: .blank)
                     } label: {
                         Label("New Machine", systemImage: "plus")
                     }
                     .disabled(!machines.isSupported || machines.store == nil)
                     Spacer()
+                    Button {
+                        machines.tab = .library
+                    } label: {
+                        Label("Library", systemImage: "square.stack.3d.down.right")
+                    }
+                    .help("Ready-to-run Linux images and installers")
                 }
                 .padding(8)
             }
@@ -60,11 +100,6 @@ struct MachinesView: View {
             }
             .frame(minWidth: 520)
         }
-        .sheet(isPresented: $creating) {
-            CreateMachineSheet()
-        }
-        .navigationTitle("Machines")
-        .onAppear { model.machines.reload() }
     }
 }
 
@@ -148,6 +183,9 @@ private struct VMPane: View {
                     Text(job.detail).font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(12)
+            }
+            if let progress = model.imageLibrary.provisioning[spec.id] {
+                ProvisioningPanel(id: spec.id, progress: progress)
             }
             if let error = machines.errors[spec.id] {
                 HStack {
