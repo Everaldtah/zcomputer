@@ -13,6 +13,7 @@ struct AgentView: View {
             VStack(spacing: 0) {
                 AgentHeader()
                 Divider()
+                AgentOnboardingCard()
                 ChatTranscript(lines: session.chat)
                 if let question = session.pendingQuestion {
                     QuestionBanner(question: question)
