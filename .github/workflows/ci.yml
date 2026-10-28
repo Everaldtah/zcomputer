@@ -83,6 +83,67 @@ jobs:
       - name: Test
         run: swift test --package-path ZVM
 
+  # ZEmu: v86 (x86 -> WebAssembly) in a WKWebView. Unit tests plus a real boot of the Alpine virt ISO in WebKit,
+  # and a compile check of the package for iOS. Uses the runner image's default Xcode (it has the iOS platform).
+  zemu:
+    name: ZEmu (macOS tests + iOS build)
+    runs-on: macos-15
+    timeout-minutes: 50
+    env:
+      ZEMU_ARTIFACTS: ${{ github.workspace }}/zemu-artifacts
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          swift --version
+          xcodebuild -showsdks | grep -iE 'iphone|macosx' || true
+      - name: Build
+        run: |
+          set -o pipefail
+          swift build --package-path ZEmu 2>&1 | tee zemu-build.log | grep -E --line-buffered 'error:|warning:|Build complete' || true
+          if grep -q 'error:' zemu-build.log; then echo "---- errors ----"; grep -E 'error:' zemu-build.log | sort -u | head -200; exit 1; fi
+      - name: iOS compile check
+        if: always()
+        working-directory: ZEmu
+        run: |
+          xcodebuild -list 2>/dev/null | tee ../zemu-schemes.txt || true
+          SCHEME=ZEmu
+          grep -qE '^ +ZEmu$' ../zemu-schemes.txt || SCHEME=ZEmu-Package
+          ok=0
+          for DEST in 'generic/platform=iOS Simulator' 'generic/platform=iOS'; do
+            echo "== xcodebuild -scheme $SCHEME -destination '$DEST'"
+            xcodebuild build -scheme "$SCHEME" -destination "$DEST" -skipPackagePluginValidation -skipMacroValidation \
+              CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO > ../zemu-ios.log 2>&1 || true
+            grep -E '(error:|warning: |\*\* BUILD)' ../zemu-ios.log | sort -u | head -150 || true
+            if grep -q '\*\* BUILD SUCCEEDED \*\*' ../zemu-ios.log; then ok=1; echo "iOS build succeeded for $DEST"; break; fi
+            grep -qiE 'is not installed|Unable to find a destination|not available' ../zemu-ios.log || break
+          done
+          [ "$ok" = 1 ] || { echo "::error::ZEmu does not build for iOS"; tail -60 ../zemu-ios.log; exit 1; }
+      - name: Test (unit + WebKit boot of Alpine virt)
+        if: always()
+        run: |
+          mkdir -p "$ZEMU_ARTIFACTS"
+          status=0
+          swift test --package-path ZEmu > zemu-test.log 2>&1 || status=$?
+          echo "---- failures and integration log ----"
+          grep -E '(error:|failed|XCTSkip|skipped|ZEMU-IT)' zemu-test.log | grep -v 'Compiling' | head -400 || true
+          echo "---- tail ----"
+          tail -40 zemu-test.log
+          exit $status
+      - name: Logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zemu-logs
+          path: |
+            zemu-build.log
+            zemu-ios.log
+            zemu-test.log
+            zemu-artifacts/
+          if-no-files-found: ignore
+
   # The ZComputer app (xcodegen + xcodebuild, unsigned). macOS minutes: only on pushes to main and on request.
   # Two legs: without MLX (fast, every app change) and with MLX (ZC_MLX=YES; mlx-swift needs Xcode >= 26.4).
   app:
