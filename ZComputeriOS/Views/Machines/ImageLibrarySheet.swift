@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 import ZCore
 
@@ -188,14 +189,25 @@ private struct CreateMachineSheet: View {
     @State private var name = ""
     @State private var memoryMB = 512
 
+    /// ZEmu's `EmuSpec.recommendedMaxMemoryMBOnPhone`.
+    static let phoneMemoryLimitMB = 512
+
+    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+
     var body: some View {
         NavigationStack {
             Form {
                 TextField(source.title, text: $name)
                 Stepper("Memory: \(memoryMB) MB", value: $memoryMB, in: 128...2048, step: 128)
+                if isPhone && memoryMB > Self.phoneMemoryLimitMB {
+                    Label("More than \(Self.phoneMemoryLimitMB) MB can make iOS end the emulator on an iPhone "
+                          + "(saving a state briefly needs a second copy).", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
                 Section {
-                    Text("The emulated PC's RAM comes out of the app's memory. 512 MB suits a light desktop; larger "
-                         + "values can make iOS close the app on phones with less memory.")
+                    Text("The emulated PC's RAM lives in WebKit's memory, which iOS caps at about 1–1.5 GB on "
+                         + "iPhones. 512 MB suits a light desktop.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
