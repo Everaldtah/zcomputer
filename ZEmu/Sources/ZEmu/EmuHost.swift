@@ -55,11 +55,11 @@ public final class EmuHost {
     private let scriptProxy: EmuScriptProxy
     private let navigationProxy: EmuNavigationProxy
 
-    public static let pageURL = "\(EmuSchemeHandler.origin)/host/emu.html"
-    public static let wasmURL = "\(EmuSchemeHandler.origin)/v86/v86.wasm"
-    public static let biosURL = "\(EmuSchemeHandler.origin)/v86/seabios.bin"
-    public static let vgaBiosURL = "\(EmuSchemeHandler.origin)/v86/vgabios.bin"
-    public static let corsProxyPrefix = "\(EmuSchemeHandler.origin)/proxy?url="
+    public nonisolated static let pageURL = "\(EmuSchemeHandler.origin)/host/emu.html"
+    public nonisolated static let wasmURL = "\(EmuSchemeHandler.origin)/v86/v86.wasm"
+    public nonisolated static let biosURL = "\(EmuSchemeHandler.origin)/v86/seabios.bin"
+    public nonisolated static let vgaBiosURL = "\(EmuSchemeHandler.origin)/v86/vgabios.bin"
+    public nonisolated static let corsProxyPrefix = "\(EmuSchemeHandler.origin)/proxy?url="
 
     /// The live screen.
     public var view: EmuPlatformView { webView }
