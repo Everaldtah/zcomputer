@@ -3,40 +3,13 @@ import UIKit
 import UniformTypeIdentifiers
 import ZCore
 
-/// What a new machine boots.
-private enum CreateSource: Identifiable {
-    case image(MachineImage)
-    case iso(URL)
-
-    var id: String {
-        switch self {
-        case .image(let image): return "image:\(image.id)"
-        case .iso(let url): return "iso:\(url.path)"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .image(let image): return image.name
-        case .iso(let url): return url.deletingPathExtension().lastPathComponent
-        }
-    }
-
-    var defaultMemoryMB: Int {
-        switch self {
-        case .image(let image): return image.defaultMemoryMB
-        case .iso: return 512
-        }
-    }
-}
-
 /// The image catalogue: the recommended instant-start "Z Alpine Desktop", installer ISOs (downloads with progress and
 /// resume), and ISOs the user put into the app's folder in Files (or imports here).
 struct ImageLibrarySheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var importing = false
-    @State private var creating: CreateSource?
+    @State private var creating: MachineCreateSource?
 
     var body: some View {
         let machines = model.machines
@@ -53,7 +26,8 @@ struct ImageLibrarySheet: View {
                 } header: {
                     Text("Recommended")
                 } footer: {
-                    Text("Ready to use: boots straight to a desktop from a saved state, with the tools agents need.")
+                    Text("Ready to use: resumes straight at an XFCE desktop from a saved state, with the tools agents "
+                         + "need (xdotool, scrot, zguest). User z, password z.")
                 }
                 Section("Installers and live systems") {
                     ForEach(catalogue.filter { !$0.recommended }) { image in
@@ -102,7 +76,11 @@ struct ImageLibrarySheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
-            .onAppear { machines.reload() }
+            .refreshable { machines.refreshCatalogue() }
+            .onAppear {
+                machines.reload()
+                machines.refreshCatalogue()
+            }
             .fileImporter(isPresented: $importing, allowedContentTypes: Self.isoTypes, allowsMultipleSelection: false) { result in
                 switch result {
                 case .success(let urls): if let url = urls.first { machines.importISO(url) }
@@ -131,11 +109,12 @@ struct ImageLibrarySheet: View {
     }
 }
 
-/// One catalogue image: download / progress / cancel / create.
+/// One catalogue image: availability (manifest), download / progress / cancel, create, delete.
 private struct ImageRow: View {
     @Environment(AppModel.self) private var model
     let image: MachineImage
     var create: () -> Void
+    @State private var confirmingDelete = false
 
     var body: some View {
         let machines = model.machines
@@ -148,23 +127,21 @@ private struct ImageRow: View {
                 if let bytes = image.downloadBytes { Text(Format.bytes(bytes)).font(.caption).foregroundStyle(.secondary) }
             }
             Text(image.summary).font(.caption).foregroundStyle(.secondary)
+            if let version = image.version {
+                Text("Build \(version)").font(.caption2).foregroundStyle(.tertiary)
+            }
             switch state {
             case .notDownloaded:
-                Button { machines.download(image) } label: { Label("Download", systemImage: "arrow.down.circle") }
-                    .disabled(!machines.isEngineAvailable)
+                availabilityControls(machines)
             case .downloading(let progress):
-                if let fraction = progress.fraction {
-                    ProgressView(value: fraction) { Text(progress.detail).font(.caption) }
-                } else {
-                    ProgressView { Text(progress.detail).font(.caption) }
-                }
+                ProgressLine(progress: progress)
                 Button("Cancel", role: .cancel) { machines.cancelDownload(image) }
             case .ready:
                 HStack {
                     Button(action: create) { Label("Create machine", systemImage: "plus.circle.fill") }
                         .buttonStyle(.borderedProminent)
                     Spacer()
-                    Button(role: .destructive) { machines.deleteImage(image) } label: { Image(systemName: "trash") }
+                    Button(role: .destructive) { confirmingDelete = true } label: { Image(systemName: "trash") }
                         .accessibilityLabel("Delete the downloaded image")
                 }
             case .failed(let message):
@@ -177,57 +154,58 @@ private struct ImageRow: View {
         }
         .buttonStyle(.borderless)
         .padding(.vertical, 4)
+        .confirmationDialog("Delete \(image.name)?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete the downloaded files", role: .destructive) { machines.deleteImage(image) }
+        } message: {
+            Text("Machines made from it cannot start until you download it again.")
+        }
+    }
+
+    /// Download, or why it cannot be downloaded yet.
+    @ViewBuilder
+    private func availabilityControls(_ machines: MachinesModel) -> some View {
+        switch image.availability {
+        case .available:
+            Button { machines.download(image) } label: { Label("Download", systemImage: "arrow.down.circle") }
+                .disabled(!machines.isEngineAvailable)
+        case .resolving:
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Checking the latest build…").font(.caption).foregroundStyle(.secondary)
+            }
+        case .unavailable(let reason):
+            Label(reason, systemImage: "icloud.slash").font(.caption).foregroundStyle(.orange)
+            Button { machines.refreshCatalogue() } label: { Label("Try again", systemImage: "arrow.clockwise") }
+                .disabled(machines.isRefreshingCatalogue)
+        }
     }
 }
 
-/// Name and memory for a new machine.
-private struct CreateMachineSheet: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let source: CreateSource
-    var onCreated: () -> Void
-    @State private var name = ""
-    @State private var memoryMB = 512
-
-    /// ZEmu's `EmuSpec.recommendedMaxMemoryMBOnPhone`.
-    static let phoneMemoryLimitMB = 512
-
-    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+/// "Step 2 of 3 · Checking" with a bar when the fraction is known.
+private struct ProgressLine: View {
+    let progress: ImageProgress
 
     var body: some View {
-        NavigationStack {
-            Form {
-                TextField(source.title, text: $name)
-                Stepper("Memory: \(memoryMB) MB", value: $memoryMB, in: 128...2048, step: 128)
-                if isPhone && memoryMB > Self.phoneMemoryLimitMB {
-                    Label("More than \(Self.phoneMemoryLimitMB) MB can make iOS end the emulator on an iPhone "
-                          + "(saving a state briefly needs a second copy).", systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                Section {
-                    Text("The emulated PC's RAM lives in WebKit's memory, which iOS caps at about 1–1.5 GB on "
-                         + "iPhones. 512 MB suits a light desktop.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            if let fraction = progress.fraction {
+                ProgressView(value: min(max(fraction, 0), 1)) { label }
+            } else {
+                ProgressView { label }
             }
-            .navigationTitle("New machine")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        switch source {
-                        case .image(let image): model.machines.create(from: image, name: name, memoryMB: memoryMB)
-                        case .iso(let url): model.machines.create(fromISO: url, name: name, memoryMB: memoryMB)
-                        }
-                        onCreated()
-                    }
-                }
-            }
-            .onAppear { memoryMB = source.defaultMemoryMB }
+            Text(progress.detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
-        .presentationDetents([.medium])
+    }
+
+    private var label: some View {
+        Text(step.map { "Step \($0) of 3 · \(progress.phase.title)" } ?? progress.phase.title).font(.caption)
+    }
+
+    private var step: Int? {
+        switch progress.phase {
+        case .download: return 1
+        case .verify: return 2
+        case .unpack: return 3
+        case .manifest, .ready: return nil
+        }
     }
 }

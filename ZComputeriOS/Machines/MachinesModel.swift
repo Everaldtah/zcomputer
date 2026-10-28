@@ -16,8 +16,13 @@ final class MachinesModel {
 
     private(set) var machines: [MachineSummary] = []
     private(set) var states: [UUID: MachineRunState] = [:]
+    /// Guest display sizes of machines with a runtime (they change with the guest's video mode).
+    private(set) var screenSizes: [UUID: PixelSize] = [:]
     private(set) var errors: [UUID: String] = [:]
     private(set) var listError: String?
+    /// The image catalogue (refreshed when an image's manifest is fetched).
+    private(set) var catalogue: [MachineImage] = []
+    private(set) var isRefreshingCatalogue = false
     private(set) var imageStates: [String: ImageDownloadState] = [:]
     private(set) var userISOs: [URL] = []
     private(set) var isImportingISO = false
@@ -32,14 +37,14 @@ final class MachinesModel {
 
     @ObservationIgnored private var runtimes: [UUID: any MachineRuntime] = [:]
     @ObservationIgnored private var surfaces: [UUID: any ComputerSurface] = [:]
-    @ObservationIgnored private var watchers: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var watchers: [UUID: [Task<Void, Never>]] = [:]
     @ObservationIgnored private var downloadTasks: [String: Task<Void, Never>] = [:]
-    @ObservationIgnored private var pausedForBackground: Set<UUID> = []
 
     init(keyStore: KeychainKeyStore, engine: any MachineEngine) {
         self.keyStore = keyStore
         self.engine = engine
         self.demo = MockComputerSurface()
+        self.catalogue = engine.catalogue()
         let saved = AgentMachineChoice(key: UserDefaults.standard.string(forKey: SettingsKey.agentMachine))
         self.agentChoice = engine.unavailableReason == nil ? saved : (saved == .none ? .none : .demo)
     }
@@ -65,24 +70,57 @@ final class MachinesModel {
 
     func state(_ id: UUID) -> MachineRunState { states[id] ?? .stopped }
 
+    /// The guest display size of a machine (its spec's screen until the runtime reports the video mode).
+    func screenSize(_ id: UUID) -> PixelSize {
+        if let size = screenSizes[id], size.width > 0, size.height > 0 { return size }
+        guard let summary = summary(id) else { return PixelSize(width: 1024, height: 768) }
+        return PixelSize(width: summary.screenWidth, height: summary.screenHeight)
+    }
+
     func dismissError(_ id: UUID) { errors[id] = nil }
 
     /// The runtime of a machine, made on first use. Its screen view is parked in the window right away.
     func runtime(for id: UUID) throws -> any MachineRuntime {
-        if let existing = runtimes[id] { return existing }
+        if let existing = runtimes[id] {
+            // A stopped machine picks up a changed guest-network setting with a new runtime.
+            guard !existing.state.isActive, existing.guestNetworkEnabled != MachineSettings.guestNetworkEnabled else {
+                return existing
+            }
+            release(id)
+        }
         let runtime = try engine.makeRuntime(for: id)
         runtimes[id] = runtime
         parking.park(runtime.screenView)
         states[id] = runtime.state
+        screenSizes[id] = runtime.screenSize
         let updates = runtime.stateStream()
-        watchers[id] = Task { [weak self] in
-            for await state in updates {
-                guard let self else { return }
-                self.states[id] = state
-                if case .error(let message) = state { self.errors[id] = message }
-            }
-        }
+        let sizes = runtime.screenSizeStream()
+        watchers[id] = [
+            Task { [weak self] in
+                for await state in updates {
+                    guard let self else { return }
+                    self.states[id] = state
+                    if case .error(let message) = state { self.errors[id] = message }
+                }
+            },
+            Task { [weak self] in
+                for await size in sizes {
+                    guard let self else { return }
+                    if self.screenSizes[id] != size { self.screenSizes[id] = size }
+                }
+            },
+        ]
         return runtime
+    }
+
+    /// Forgets a machine's runtime (its web view, surface and watchers).
+    private func release(_ id: UUID) {
+        for task in watchers[id] ?? [] { task.cancel() }
+        watchers[id] = nil
+        if let runtime = runtimes[id] { parking.evict(runtime.screenView) }
+        runtimes[id] = nil
+        surfaces[id] = nil
+        screenSizes[id] = nil
     }
 
     /// The runtime only when it already exists (views must not create machines just by rendering).
@@ -111,9 +149,13 @@ final class MachinesModel {
         }
     }
 
-    func stop(_ id: UUID) {
+    /// Powers a machine off. With `saveState` the next start resumes exactly here; without, it starts afresh.
+    func stop(_ id: UUID, saveState: Bool) {
         guard let runtime = runtimes[id] else { return }
-        perform(id) { try await runtime.stop() }
+        perform(id) {
+            try await runtime.stop(saveState: saveState)
+            self.reload()
+        }
     }
 
     func pause(_ id: UUID) {
@@ -137,12 +179,8 @@ final class MachinesModel {
     func delete(_ id: UUID) {
         let runtime = runtimes[id]
         Task {
-            if let runtime, runtime.state.isActive { try? await runtime.stop() }
-            watchers[id]?.cancel()
-            watchers[id] = nil
-            if let runtime { parking.evict(runtime.screenView) }
-            runtimes[id] = nil
-            surfaces[id] = nil
+            if let runtime, runtime.state.isActive { try? await runtime.stop(saveState: false) }
+            release(id)
             states[id] = nil
             errors[id] = nil
             if presented == .machine(id) { presented = nil }
@@ -160,33 +198,49 @@ final class MachinesModel {
 
     // MARK: App lifecycle
 
-    /// iOS suspends WebKit in the background: pause running machines so the guest clock does not jump.
+    /// iOS suspends WebKit soon after the app leaves the screen and may end the app later: each running machine is
+    /// paused and saved (with background time), and resumes on return; a machine iOS ended resumes from that save.
     func appDidEnterBackground() {
-        for (id, runtime) in runtimes where runtime.state == .running {
-            pausedForBackground.insert(id)
-            Task { try? await runtime.pause() }
+        let active = runtimes.values.filter { $0.state == .running || $0.state == .paused || $0.state == .saving }
+        guard !active.isEmpty else { return }
+        let time = BackgroundTime(name: "Save running machines")
+        Task {
+            for runtime in active { await runtime.enterBackground() }
+            time.end()
         }
     }
 
     func appWillEnterForeground() {
-        let ids = pausedForBackground
-        pausedForBackground.removeAll()
-        for id in ids {
-            guard let runtime = runtimes[id] else { continue }
-            Task { try? await runtime.resume() }
+        for runtime in runtimes.values {
+            Task { await runtime.enterForeground() }
         }
     }
 
     // MARK: Image catalogue
 
-    var catalogue: [MachineImage] { engine.catalogue() }
-
     func imageState(_ image: MachineImage) -> ImageDownloadState { imageStates[image.id] ?? .notDownloaded }
 
     func refreshImageStates() {
-        for image in engine.catalogue() where downloadTasks[image.id] == nil {
+        catalogue = engine.catalogue()
+        for image in catalogue where downloadTasks[image.id] == nil {
             if case .failed? = imageStates[image.id] { continue }
             imageStates[image.id] = engine.isImageReady(image) ? .ready : .notDownloaded
+        }
+    }
+
+    /// Fetches the manifests of manifest-described images (Z Alpine Desktop), e.g. when the image library opens.
+    func refreshCatalogue() {
+        guard !isRefreshingCatalogue else { return }
+        let needsFetch = catalogue.contains { image in
+            if case .available = image.availability { return false }
+            return true
+        }
+        guard needsFetch else { return }
+        isRefreshingCatalogue = true
+        Task {
+            await engine.refreshCatalogue()
+            isRefreshingCatalogue = false
+            refreshImageStates()
         }
     }
 
@@ -194,7 +248,7 @@ final class MachinesModel {
     func download(_ image: MachineImage) {
         guard downloadTasks[image.id] == nil else { return }
         let id = image.id
-        imageStates[id] = .downloading(ImageProgress(fraction: 0, detail: "Starting"))
+        imageStates[id] = .downloading(ImageProgress(fraction: nil, detail: "Starting", phase: .download))
         let model = self   // lives as long as the app
         downloadTasks[id] = Task {
             do {
@@ -211,6 +265,8 @@ final class MachinesModel {
                 model.imageStates[id] = Task.isCancelled ? .notDownloaded : .failed(Format.describe(error))
             }
             model.downloadTasks[id] = nil
+            // The download resolved the image's manifest (sizes, version) or found it unavailable.
+            model.catalogue = model.engine.catalogue()
         }
     }
 
@@ -316,5 +372,24 @@ final class MachinesModel {
             message = Format.describe(error)
         }
         refreshISOs()
+    }
+}
+
+/// Extra time from iOS to finish work after the app left the screen (`beginBackgroundTask`); ended by `end()` or
+/// when iOS runs out of patience.
+@MainActor
+final class BackgroundTime {
+    private var identifier = UIBackgroundTaskIdentifier.invalid
+
+    init(name: String) {
+        identifier = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            self?.end()
+        }
+    }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
     }
 }

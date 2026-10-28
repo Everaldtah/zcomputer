@@ -20,12 +20,13 @@ struct ZComputeriOSApp: App {
         }
     }
 
-    /// The emulator when this build links ZEmu, otherwise a stand-in that lists the catalogue only.
+    /// The emulator when this build links ZEmu (project.yml does), otherwise a stand-in that lists the catalogue only.
     @MainActor
     static func makeEngine() -> any MachineEngine {
         #if canImport(ZEmu)
         return ZEmuMachineEngine()
         #else
+        #warning("ZEmu is not linked: machines use UnavailableMachineEngine (check project.yml)")
         return UnavailableMachineEngine()
         #endif
     }
