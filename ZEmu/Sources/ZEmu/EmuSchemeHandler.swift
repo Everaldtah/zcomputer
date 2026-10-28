@@ -54,18 +54,22 @@ public final class EmuSchemeHandler: NSObject, WKURLSchemeHandler {
 
     // MARK: WKURLSchemeHandler
 
+    // WebKit calls these on the main thread and the task objects are only ever used there; the task is not
+    // Sendable, so it is handed to the main actor as `nonisolated(unsafe)`.
     public nonisolated func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+        nonisolated(unsafe) let task = urlSchemeTask
+        let id = ObjectIdentifier(urlSchemeTask)
         MainActor.assumeIsolated {
-            let id = ObjectIdentifier(urlSchemeTask)
-            active[id] = urlSchemeTask
-            let request = urlSchemeTask.request
+            active[id] = task
+            let request = task.request
             Task { @MainActor in await self.serve(id: id, request: request) }
         }
     }
 
     public nonisolated func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
+        let id = ObjectIdentifier(urlSchemeTask)
         MainActor.assumeIsolated {
-            active[ObjectIdentifier(urlSchemeTask)] = nil
+            active[id] = nil
         }
     }
 
